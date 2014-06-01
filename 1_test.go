@@ -37,3 +37,42 @@ func TestIdentifierParser(t *testing.T) {
 	S = (*plexem).LexemAsString()
 	if S != "арифметическое" {t.Errorf("Лексема содержит неправильный текст: \"%s\"", S)}
 }
+
+func TestNumberParser(t *testing.T) {
+	var S string
+	buf := []uint8{0xFF, 0xFE,
+		0x09, 0x00, 0x5F, 0x00, 0x41, 0x04, 0x47, 0x04, 0x51, 0x04, 0x42, 0x04, 0x47, 0x04, 0x38, 0x04, 0x3A, 0x04, 0x20, 0,
+		0x46, 0x04, 0x35, 0x04, 0x3B, 0x04, 0x3E, 0x04, 0x35, 0x04, 0x20, 0,
+		0x3D, 0x00, 0x20, 0,
+		0x31, 0x00, 0x30, 0x00, 0x39, 0x00, 0x0D, 0x00, 0x0A, 0}
+
+	p := memfs.PBigByteArray(unsafe.Pointer(&buf[0]))
+
+	plexem, errorCode, _ := BuildLexems(p, uint64(len(buf)))
+
+	if errorCode != 0 {t.Fatalf("errorCode: %d", errorCode)}
+	
+	plexem = plexem.Next
+	if plexem == nil {t.Fatal("Мало лексем")}
+	if plexem.Type != ltIdent {t.Errorf("Неправильный тип: %d", plexem.Type)}
+	S = (*plexem).LexemAsString()
+	if S != "_счётчик" {t.Errorf("Лексема содержит неправильный текст: \"%s\"", S)}
+
+	plexem = plexem.Next
+	if plexem == nil {t.Fatal("Мало лексем")}
+	if plexem.Type != ltIdent {t.Errorf("Неправильный тип: %d", plexem.Type)}
+	S = (*plexem).LexemAsString()
+	if S != "целое" {t.Errorf("Лексема содержит неправильный текст: \"%s\"", S)}
+
+	plexem = plexem.Next
+	if plexem == nil {t.Fatal("Мало лексем")}
+	if plexem.Type != ltSymbol {t.Errorf("Неправильный тип: %d", plexem.Type)}
+	S = (*plexem).LexemAsString()
+	if S != "=" {t.Errorf("Лексема содержит неправильный текст: \"%s\"", S)}
+
+	plexem = plexem.Next
+	if plexem == nil {t.Fatal("Мало лексем")}
+	if plexem.Type != ltNumber {t.Errorf("Неправильный тип: %d", plexem.Type)}
+	S = (*plexem).LexemAsString()
+	if S != "109" {t.Errorf("Лексема содержит неправильный текст: \"%s\"", S)}
+}
