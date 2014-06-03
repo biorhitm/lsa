@@ -2,8 +2,8 @@ package lsa
 
 import (
 	"github.com/biorhitm/memfs"
-	"unsafe"
 	"syscall"
+	"unsafe"
 )
 
 type TBigShortArray [0x1FFFFFFFFFFFF]uint16
@@ -15,11 +15,11 @@ type TLexemType uint
 const (
 	ltUnknown = iota
 	ltEOF
-	ltNumber       // 12
-	ltString       // "test"
-	ltChar         // 'a' 'x' '%'
-	ltSymbol       // ! @ # $ % ^ & * () - + = [] {} и т.д.
-	ltIdent        // имя функции, переменной или типа
+	ltNumber // 12
+	ltString // "test"
+	ltChar   // 'a' 'x' '%'
+	ltSymbol // ! @ # $ % ^ & * () - + = [] {} и т.д.
+	ltIdent  // имя функции, переменной или типа
 	ltEOL
 	ltReservedWord //функция, конец, если и т.д.
 )
@@ -33,12 +33,18 @@ type TLexem struct {
 
 type PLexem *TLexem
 
-func (self *TLexem)LexemAsString() string {
-	b := make([]uint16, self.Size)
-	for i := 0; i < self.Size; i++ {
-		b[i] = self.Text[i]
+func (self *TLexem) LexemAsString() string {
+	S := ""
+
+	if self.Size > 0 {
+		b := make([]uint16, self.Size)
+		for i := 0; i < self.Size; i++ {
+			b[i] = self.Text[i]
+		}
+		S = syscall.UTF16ToString(b)
 	}
-	return syscall.UTF16ToString(b)
+
+	return S
 }
 
 func isLetter(C uint16) bool {
