@@ -2,6 +2,7 @@ package lsa
 
 import (
 	"github.com/biorhitm/memfs"
+	"io"
 	"syscall"
 	"unsafe"
 )
@@ -32,6 +33,12 @@ type TLexem struct {
 }
 
 type PLexem *TLexem
+
+type TReader struct {
+	Text  memfs.PBigByteArray
+	Size  uint64
+	Index uint64
+}
 
 func (self *TLexem) LexemAsString() string {
 	S := ""
@@ -80,6 +87,44 @@ func createNewLexem(parent PLexem, text uint64, _type TLexemType) PLexem {
 	return L
 }
 
+func (R *TReader) ReadRune()(aChar rune, aSize int, E error) {
+	if R.Index >= R.Size {
+		return 0, io.EOF
+	}
+
+	B := R.Text[R.Index]
+	if B == 0xD0 {
+
+		B1 := R.Text[R.Index+1]
+		switch B1 {
+			case 0x81: {
+				return //Ё
+			}
+
+			case 0x90 <= B1 && B1 <= 0xAF: {
+				return //A..Я
+			}
+
+			case 0xB0 <= B1 && B1 <= 0xBF: {
+				return // а..п
+			}
+		}
+
+	} else if B == 0xD1 {
+
+		B1 := R.Text[R.Index+1]
+		switch B1 {
+			case 0x91: {
+				return //ё
+			}
+
+			case 0x80 <= B1 && B1 <= 0x8F: {
+				return //р..я
+			}
+		}
+	}
+}
+
 // Error codes
 const (
 	errNoSuccess = iota
@@ -87,7 +132,7 @@ const (
 	errNoUnterminatedChar
 )
 
-func BuildLexems(text memfs.PBigByteArray, size uint64) (lexem PLexem, errorCode uint, errorIndex uint64) {
+func BuildLexems(aReader TReader) (lexem PLexem, errorCode uint, errorIndex uint64) {
 	var idx uint64 = 1
 	var C uint16
 	var curLexem, firstLexem PLexem
