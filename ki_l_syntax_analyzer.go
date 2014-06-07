@@ -5,7 +5,6 @@ import (
 	"github.com/biorhitm/memfs"
 	"io"
 	"unsafe"
-	"fmt"
 )
 
 type TBigShortArray [0x1FFFFFFFFFFFF]uint16
@@ -80,59 +79,47 @@ func isSymbol(C rune) bool {
 var InvalidRune = errors.New("Invalid utf8 char, support russian only")
 
 func (R *TReader) readRune() (aChar rune, E error) {
-	var size int = 1
 
 	if R.Index >= R.Size {
 		return 0, io.EOF
 	}
 
+	size := uint(1)
 	B := R.Text[R.Index]
-	if B == 0xD0 {
 
-		B1 := R.Text[R.Index+1]
-		switch {
-		case B1 == 0x81:
-			{
-				size = 2
-				aChar = 'Ё'
-			}
-
-		case 0x90 <= B1 && B1 <= 0xAF:
-			{
-				size = 2
-				S := "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
-				aChar = rune(S[B1-0x90])
-			}
-
-		case 0xB0 <= B1 && B1 <= 0xBF:
-			{
-				size = 2
-				//return // а..п
-			}
-
-		default:
-			return 0, InvalidRune
+	/*
+	   utf-8 encoding
+	   (1 байт)  0xxx xxxx
+	   (2 байта) 110x xxxx 10xx xxxx
+	   (3 байта) 1110 xxxx 10xx xxxx 10xx xxxx
+	   (4 байта) 1111 0xxx 10xx xxxx 10xx xxxx 10xx xxxx
+	   (5 байт)  1111 10xx 10xx xxxx 10xx xxxx 10xx xxxx 10xx xxxx
+	   (6 байт)  1111 110x 10xx xxxx 10xx xxxx 10xx xxxx 10xx xxxx 10xx xxxx
+	*/
+	if B&0x80 != 0 { //first or next byte utf-8 sequence longer than 1 byte
+		B <<= 1
+		sequenceLen := uint(1)
+		for ; B&0x80 != 0; B <<= 1 {
+			sequenceLen++
 		}
 
-	} else if B == 0xD1 {
-
-		B1 := R.Text[R.Index+1]
-		switch {
-		case B1 == 0x91:
-			{
-				size = 2
-				//return //ё
-			}
-
-		case 0x80 <= B1 && B1 <= 0x8F:
-			{
-				size = 2
-				//return //р..я
-			}
-
-		default:
-			return 0, InvalidRune
+		if sequenceLen < 2 {
+			// курсор указывает не на начало последовательности
 		}
+		if sequenceLen > 4 {
+			// курсор указывает на неправильную последовательность
+		}
+
+		aChar = rune(B >> sequenceLen)
+		for i := uint(1); i < sequenceLen; i++ {
+			B = R.Text[R.Index+uint64(i)] //TODO проверка
+			if B&0xC0 == 0x80 {
+				aChar = aChar<<6 | rune(B&0x3F)
+			} else {
+				// неправильная последовательность
+			}
+		}
+		size = sequenceLen
 	} else {
 		aChar = rune(B)
 	}
@@ -190,8 +177,7 @@ func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64
 	firstLexem = curLexem
 
 	for {
-		C, err := R.readRune();
-		fmt.Printf("0x%02X ", C)
+		C, err := R.readRune()
 		if err != nil {
 			return nil, 1, R.Index
 		}
