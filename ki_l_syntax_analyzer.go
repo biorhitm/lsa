@@ -158,6 +158,31 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 				}
 			}
 		}
+
+	case ltNumber:
+		{
+			startIndex = R.PrevIndex
+			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
+			for {
+				C, err := R.readRune()
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+					return nil //TODO выдать ошибку
+				}
+				if !isDigit(C) {
+					R.Unread()
+					break
+				}
+			}
+		}
+
+	case ltSymbol:
+		{
+			startIndex = R.PrevIndex
+			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
+		}
 	}
 
 	L.Size = int(R.Index - startIndex)
