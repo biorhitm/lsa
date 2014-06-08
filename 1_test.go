@@ -318,12 +318,8 @@ func TestStringParser(t *testing.T) {
 }
 
 func TestCharParser(t *testing.T) {
-	t.Skip()
-	var S string
-	buf := []uint8{
-		0x09, 0x00, 0x11, 0x04, 0x20, 0,
-		0x3D, 0x00, 0x20, 0,
-		0x27, 0x00, 0x24, 0x00, 0x27, 0x00, 0x0D, 0x00, 0x0A, 0}
+	var S string = "\tБ = '$'\r\n"
+	buf, _ := stringToUTF8EncodedByteArray(S)
 
 	R := TReader{
 		Text:      memfs.PBigByteArray(unsafe.Pointer(&buf[0])),
@@ -380,8 +376,12 @@ func TestCharParser(t *testing.T) {
 	if plexem.Type != ltEOL {
 		t.Errorf("Неправильный тип: %d", plexem.Type)
 	}
-}
 
-func TestReadRune(t *testing.T) {
-	//var R TReader{nil, 2, 0}
+	plexem = plexem.Next
+	if plexem == nil {
+		t.Fatal("Мало лексем")
+	}
+	if plexem.Type != ltEOF {
+		t.Errorf("Неправильный тип: %d", plexem.Type)
+	}
 }
