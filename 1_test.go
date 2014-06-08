@@ -173,6 +173,14 @@ func TestIdentifierParser(t *testing.T) {
 	if S != "арифметическое" {
 		t.Errorf("Лексема содержит неправильный текст: \"%s\"", S)
 	}
+
+	plexem = plexem.Next
+	if plexem == nil {
+		t.Fatal("Мало лексем")
+	}
+	if plexem.Type != ltEOF {
+		t.Errorf("Неправильный тип: %d", plexem.Type)
+	}
 }
 
 func TestNumberParser(t *testing.T) {
