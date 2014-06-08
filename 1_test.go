@@ -249,13 +249,8 @@ func TestNumberParser(t *testing.T) {
 }
 
 func TestStringParser(t *testing.T) {
-	t.Skip()
-	var S string
-	buf := []uint8{
-		0x09, 0x00, 0x10, 0x04, 0x20, 0,
-		0x3D, 0x00, 0x20, 0,
-		0x22, 0x00, 0x1F, 0x04, 0x40, 0x04, 0x38, 0x04, 0x32, 0x04, 0x35, 0x04, 0x42, 0x04, 0x20, 0,
-		0x3C, 0x04, 0x38, 0x04, 0x40, 0x04, 0x21, 0x00, 0x22, 0x00, 0x0D, 0x00, 0x0A, 0}
+	var S string = "\tА = \"Привет мир!\"\r\n"
+	buf, _ := stringToUTF8EncodedByteArray(S)
 
 	R := TReader{
 		Text:      memfs.PBigByteArray(unsafe.Pointer(&buf[0])),
@@ -303,6 +298,22 @@ func TestStringParser(t *testing.T) {
 	S = (*plexem).LexemAsString()
 	if S != "Привет мир!" {
 		t.Errorf("Лексема содержит неправильный текст: \"%s\"", S)
+	}
+
+	plexem = plexem.Next
+	if plexem == nil {
+		t.Fatal("Мало лексем")
+	}
+	if plexem.Type != ltEOL {
+		t.Errorf("Неправильный тип: %d", plexem.Type)
+	}
+
+	plexem = plexem.Next
+	if plexem == nil {
+		t.Fatal("Мало лексем")
+	}
+	if plexem.Type != ltEOF {
+		t.Errorf("Неправильный тип: %d", plexem.Type)
 	}
 }
 

@@ -154,6 +154,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 				}
 				if !isIdentLetter(C) && !isDigit(C) {
 					R.Unread()
+					L.Size = int(R.Index - startIndex)
 					break
 				}
 			}
@@ -173,6 +174,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 				}
 				if !isDigit(C) {
 					R.Unread()
+					L.Size = int(R.Index - startIndex)
 					break
 				}
 			}
@@ -182,10 +184,28 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 		{
 			startIndex = R.PrevIndex
 			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
+			L.Size = 1
+		}
+
+	case ltString:
+		{
+			startIndex = R.Index
+			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
+			for {
+				C, err := R.readRune()
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+					return nil //TODO выдать ошибку
+				}
+				if C == '"' {
+					L.Size = int(R.PrevIndex - startIndex)
+					break
+				}
+			}
 		}
 	}
-
-	L.Size = int(R.Index - startIndex)
 
 	if parent != nil {
 		parent.Next = L
