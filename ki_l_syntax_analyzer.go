@@ -148,6 +148,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 				C, err := R.readRune()
 				if err != nil {
 					if err == io.EOF {
+						L.Size = int(R.Index - startIndex)
 						break
 					}
 					return nil //TODO выдать ошибку
@@ -168,6 +169,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 				C, err := R.readRune()
 				if err != nil {
 					if err == io.EOF {
+						L.Size = int(R.Index - startIndex)
 						break
 					}
 					return nil //TODO выдать ошибку
@@ -195,11 +197,33 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 				C, err := R.readRune()
 				if err != nil {
 					if err == io.EOF {
+						//TODO выдать ошибку unterminated string
 						break
 					}
 					return nil //TODO выдать ошибку
 				}
 				if C == '"' {
+					L.Size = int(R.PrevIndex - startIndex)
+					break
+				}
+			}
+		}
+
+	case ltChar:
+		{
+			startIndex = R.Index
+			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
+			//TODO заменить на вызов чтения символа, разрулить спец. послед.
+			for {
+				C, err := R.readRune()
+				if err != nil {
+					if err == io.EOF {
+						//TODO выдать ошибку unterminated char
+						break
+					}
+					return nil //TODO выдать ошибку
+				}
+				if C == 0x27 {
 					L.Size = int(R.PrevIndex - startIndex)
 					break
 				}
