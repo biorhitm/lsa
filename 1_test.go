@@ -10,21 +10,32 @@ import (
 	"unsafe"
 )
 
-func stringToUTF8EncodedByteArray(B []uint8, S string) {
+var global_buffer = make([]uint8, 4000)
+
+func stringToUTF8EncodedByteArray(S string) ([]uint8, error) {
+	L := len(global_buffer)-8
+	if L < len(S) {
+		return nil, fmt.Errorf("need to increase size of 'global_buffer', to %d",
+		len(S)+8)
+	}
+	buf := global_buffer[L:]
+
 	idx := 0
-	buf := make([]uint8, 4)
 	reader := strings.NewReader(S)
+
 	for {
-		R, _, E := reader.ReadRune()
-		if E != nil {
+		if R, _, E := reader.ReadRune(); E == nil {
+			size := utf8.EncodeRune(buf, R)
+			for i := 0; i < size; i++ {
+				global_buffer[idx+i] = buf[i]
+			}
+			idx += size
+		} else {
 			break
 		}
-		size := utf8.EncodeRune(buf, R)
-		for i := 0; i < size; i++ {
-			B[idx+i] = buf[i]
-		}
-		idx += size
 	}
+
+	return global_buffer[:idx], nil
 }
 
 func Test_stringToUTF8EncodedByteArray(t *testing.T) {
@@ -48,8 +59,12 @@ func Test_stringToUTF8EncodedByteArray(t *testing.T) {
 		0xD1, 0x8E, 0xD1, 0x8F,
 	}
 
-	buffer := make([]uint8, len(S))
-	stringToUTF8EncodedByteArray(buffer, S)
+	buffer, E := stringToUTF8EncodedByteArray(S)
+	if E != nil {
+		t.Log(E)
+		t.Fatal()
+	}
+
 	for i := 0; i < len(buffer); i++ {
 		if buffer[i] != stringUTF8encoding[i] {
 			t.Fatalf("stringToUTF8EncodedByteArray fail on %d", i)
@@ -60,8 +75,8 @@ func Test_stringToUTF8EncodedByteArray(t *testing.T) {
 func Test_readRune(t *testing.T) {
 	var S string = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" +
 		"абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
-	buffer := make([]uint8, len(S))
-	stringToUTF8EncodedByteArray(buffer, S)
+
+	buffer,_ := stringToUTF8EncodedByteArray(S)
 
 	reader := TReader{
 		Text:      memfs.PBigByteArray(unsafe.Pointer(&buffer[0])),
@@ -94,7 +109,7 @@ func Test_readRune(t *testing.T) {
 			t.Fatal()
 		}
 
-		if reader.Index - reader.PrevIndex != 2 {
+		if reader.Index-reader.PrevIndex != 2 {
 			t.Fatalf("Rune have invalid size, index: %d", runeNo)
 		}
 
@@ -109,8 +124,7 @@ func Test_readRune(t *testing.T) {
 
 func TestIdentifierParser(t *testing.T) {
 	var S string = "функция среднее арифметическое"
-	buffer := make([]uint8, len(S))
-	stringToUTF8EncodedByteArray(buffer, S)
+	buffer, _ := stringToUTF8EncodedByteArray(S)
 
 	R := TReader{
 		Text:      memfs.PBigByteArray(unsafe.Pointer(&buffer[0])),
