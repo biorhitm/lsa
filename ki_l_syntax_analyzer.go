@@ -56,9 +56,7 @@ func (self *TLexem) LexemAsString() string {
 }
 
 func isLetter(C rune) bool {
-	return (0x0410 <= C && C <= 0x042F) ||
-		(0x0430 <= C && C <= 0x044F) ||
-		C == 0x0401 || C == 0x0451
+	return (0x0410 <= C && C <= 0x044F) || C == 0x0401 || C == 0x0451
 }
 
 func isIdentLetter(C rune) bool {
@@ -146,7 +144,14 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 			R.Unread()
 			startIndex = R.Index
 			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[R.Index]))
-			for C, err := R.readRune(); err == nil; {
+			for {
+				C, err := R.readRune()
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+					return nil //TODO выдать ошибку
+				}
 				if !isIdentLetter(C) && !isDigit(C) {
 					R.Unread()
 					break
@@ -179,13 +184,16 @@ func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64
 	for {
 		C, err := R.readRune()
 		if err != nil {
+			if err == io.EOF {
+				break
+			}
 			return nil, 1, R.Index
 		}
 
 		switch {
 		case isIdentLetter(C):
 			{
-				//curLexem = R.createNewLexem(curLexem, ltIdent)
+				curLexem = R.createNewLexem(curLexem, ltIdent)
 			}
 
 		case isDigit(C):
