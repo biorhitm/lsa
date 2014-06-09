@@ -1,8 +1,9 @@
 package lsa
 
 import (
+	"errors"
 	"github.com/biorhitm/memfs"
-	"syscall"
+	"io"
 	"unsafe"
 )
 
@@ -26,54 +27,210 @@ const (
 
 type TLexem struct {
 	Next PLexem
-	Text PBigShortArray
+	Text memfs.PBigByteArray
 	Size int
 	Type TLexemType
 }
 
 type PLexem *TLexem
 
+type TReader struct {
+	Text      memfs.PBigByteArray
+	Size      uint64
+	Index     uint64
+	PrevIndex uint64
+}
+
 func (self *TLexem) LexemAsString() string {
 	S := ""
 
 	if self.Size > 0 {
-		b := make([]uint16, self.Size)
+		b := make([]uint8, self.Size)
 		for i := 0; i < self.Size; i++ {
 			b[i] = self.Text[i]
 		}
-		S = syscall.UTF16ToString(b)
+		S = string(b)
 	}
 
 	return S
 }
 
-func isLetter(C uint16) bool {
-	return (0x0410 <= C && C <= 0x042F) ||
-		(0x0430 <= C && C <= 0x044F) ||
-		C == 0x0401 || C == 0x0451
+func isLetter(C rune) bool {
+	return (0x0410 <= C && C <= 0x044F) || C == 0x0401 || C == 0x0451
 }
 
-func isIdentLetter(C uint16) bool {
+func isIdentLetter(C rune) bool {
 	return C == '_' || isLetter(C)
 }
 
-func isDigit(C uint16) bool {
+func isDigit(C rune) bool {
 	return '0' <= C && C <= '9'
 }
 
-func isSymbol(C uint16) bool {
+func isSymbol(C rune) bool {
 	return ('!' <= C && C <= '/') ||
 		(':' <= C && C <= '@') ||
 		('[' <= C && C <= '`') ||
 		('{' <= C && C <= '~')
 }
 
-func createNewLexem(parent PLexem, text uint64, _type TLexemType) PLexem {
+var InvalidRune = errors.New("Invalid utf8 char, support russian only")
+
+func (R *TReader) readRune() (aChar rune, E error) {
+
+	if R.Index >= R.Size {
+		return 0, io.EOF
+	}
+
+	size := uint(1)
+	B := R.Text[R.Index]
+
+	/*
+	   utf-8 encoding
+	   (1 байт)  0xxx xxxx
+	   (2 байта) 110x xxxx 10xx xxxx
+	   (3 байта) 1110 xxxx 10xx xxxx 10xx xxxx
+	   (4 байта) 1111 0xxx 10xx xxxx 10xx xxxx 10xx xxxx
+	   (5 байт)  1111 10xx 10xx xxxx 10xx xxxx 10xx xxxx 10xx xxxx
+	   (6 байт)  1111 110x 10xx xxxx 10xx xxxx 10xx xxxx 10xx xxxx 10xx xxxx
+	*/
+	if B&0x80 != 0 { //first or next byte utf-8 sequence longer than 1 byte
+		B <<= 1
+		sequenceLen := uint(1)
+		for ; B&0x80 != 0; B <<= 1 {
+			sequenceLen++
+		}
+
+		if sequenceLen < 2 {
+			// курсор указывает не на начало последовательности
+		}
+		if sequenceLen > 4 {
+			// курсор указывает на неправильную последовательность
+		}
+
+		aChar = rune(B >> sequenceLen)
+		for i := uint(1); i < sequenceLen; i++ {
+			B = R.Text[R.Index+uint64(i)] //TODO проверка
+			if B&0xC0 == 0x80 {
+				aChar = aChar<<6 | rune(B&0x3F)
+			} else {
+				// неправильная последовательность
+			}
+		}
+		size = sequenceLen
+	} else {
+		aChar = rune(B)
+	}
+
+	R.PrevIndex = R.Index
+	R.Index += uint64(size)
+	return aChar, nil
+}
+
+func (R *TReader) Unread() {
+	R.Index = R.PrevIndex
+}
+
+func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
+	var startIndex uint64 = 0
+
 	L := new(TLexem)
-	L.Text = PBigShortArray(unsafe.Pointer(uintptr(text)))
 	L.Type = _type
-	L.Size = 0
 	L.Next = nil
+
+	switch _type {
+	case ltIdent:
+		{
+			R.Unread()
+			startIndex = R.Index
+			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[R.Index]))
+			for {
+				C, err := R.readRune()
+				if err != nil {
+					if err == io.EOF {
+						L.Size = int(R.Index - startIndex)
+						break
+					}
+					return nil //TODO выдать ошибку
+				}
+				if !isIdentLetter(C) && !isDigit(C) {
+					R.Unread()
+					L.Size = int(R.Index - startIndex)
+					break
+				}
+			}
+		}
+
+	case ltNumber:
+		{
+			startIndex = R.PrevIndex
+			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
+			for {
+				C, err := R.readRune()
+				if err != nil {
+					if err == io.EOF {
+						L.Size = int(R.Index - startIndex)
+						break
+					}
+					return nil //TODO выдать ошибку
+				}
+				if !isDigit(C) {
+					R.Unread()
+					L.Size = int(R.Index - startIndex)
+					break
+				}
+			}
+		}
+
+	case ltSymbol:
+		{
+			startIndex = R.PrevIndex
+			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
+			L.Size = 1
+		}
+
+	case ltString:
+		{
+			startIndex = R.Index
+			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
+			for {
+				C, err := R.readRune()
+				if err != nil {
+					if err == io.EOF {
+						//TODO выдать ошибку unterminated string
+						break
+					}
+					return nil //TODO выдать ошибку
+				}
+				if C == '"' {
+					L.Size = int(R.PrevIndex - startIndex)
+					break
+				}
+			}
+		}
+
+	case ltChar:
+		{
+			startIndex = R.Index
+			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
+			//TODO заменить на вызов чтения символа, разрулить спец. послед.
+			for {
+				C, err := R.readRune()
+				if err != nil {
+					if err == io.EOF {
+						//TODO выдать ошибку unterminated char
+						break
+					}
+					return nil //TODO выдать ошибку
+				}
+				if C == 0x27 {
+					L.Size = int(R.PrevIndex - startIndex)
+					break
+				}
+			}
+		}
+	}
+
 	if parent != nil {
 		parent.Next = L
 	}
@@ -87,99 +244,57 @@ const (
 	errNoUnterminatedChar
 )
 
-func BuildLexems(text memfs.PBigByteArray, size uint64) (lexem PLexem, errorCode uint, errorIndex uint64) {
-	var idx uint64 = 1
-	var C uint16
+func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64) {
 	var curLexem, firstLexem PLexem
-	var startIdx uint64
-
-	var T PBigShortArray = nil
-
-	if text[0] == 0xFF && text[1] == 0xFE {
-		// типа Unicode
-		T = PBigShortArray(unsafe.Pointer(text))
-		size = (size - 2) / 2
-	}
-
-	addrOfText := uint64(uintptr(unsafe.Pointer(T)))
 
 	curLexem = new(TLexem)
 	firstLexem = curLexem
 
-	for idx <= size {
-		C = T[idx]
+	for {
+		C, err := R.readRune()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, 1, R.Index
+		}
+
 		switch {
 		case isIdentLetter(C):
 			{
-				startIdx = idx
-				curLexem = createNewLexem(curLexem, addrOfText+idx*2, ltIdent)
-				idx++
-				for idx < size && (isIdentLetter(T[idx]) || isDigit(T[idx])) {
-					idx++
-				}
-				curLexem.Size = int(idx - startIdx)
+				curLexem = R.createNewLexem(curLexem, ltIdent)
 			}
 
 		case isDigit(C):
 			{
-				startIdx = idx
-				curLexem = createNewLexem(curLexem, addrOfText+idx*2, ltNumber)
-				idx++
-				for idx < size && isDigit(T[idx]) {
-					idx++
-				}
-				curLexem.Size = int(idx - startIdx)
+				curLexem = R.createNewLexem(curLexem, ltNumber)
 			}
 
 		case C == '"':
 			{
-				startIdx = idx
-				idx++
-				if idx > size {
-					return firstLexem, errNoUnterminatedString, startIdx
-				}
-				for idx <= size && T[idx] != '"' {
-					idx++
-				}
-				if idx > size {
-					return firstLexem, errNoUnterminatedString, startIdx
-				}
-
-				startIdx++
-				curLexem = createNewLexem(curLexem, addrOfText+startIdx*2, ltString)
-				curLexem.Size = int(idx - startIdx)
-				idx++
+				curLexem = R.createNewLexem(curLexem, ltString)
 			}
 
 		case C == 0x27: //single quote
 			{
-				if (idx+2 > size) || (T[idx+2] != 0x27) {
-					return firstLexem, errNoUnterminatedChar, idx
-				}
-				curLexem = createNewLexem(curLexem, addrOfText+(idx+1)*2, ltChar)
-				curLexem.Size = 1
-				idx += 3
+				curLexem = R.createNewLexem(curLexem, ltChar)
 			}
 
 		case isSymbol(C):
 			{
-				curLexem = createNewLexem(curLexem, addrOfText+idx*2, ltSymbol)
-				curLexem.Size = 1
-				idx++
+				curLexem = R.createNewLexem(curLexem, ltSymbol)
 			}
 
 		case C == 0x0A:
 			{
-				curLexem = createNewLexem(curLexem, addrOfText+idx*2, ltEOL)
-				idx++
+				curLexem = R.createNewLexem(curLexem, ltEOL)
 			}
 
 		default:
-			idx++
 		}
 	}
 
-	createNewLexem(curLexem, 0, ltEOF)
+	R.createNewLexem(curLexem, ltEOF)
 
 	return firstLexem, errNoSuccess, 0
 }
