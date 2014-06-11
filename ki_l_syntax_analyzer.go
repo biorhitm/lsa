@@ -83,43 +83,67 @@ func (R *TReader) readRune() (aChar rune, E error) {
 	}
 
 	size := uint(1)
-	B := R.Text[R.Index]
+	ok := false
 
-	/*
-	   utf-8 encoding
-	   (1 байт)  0xxx xxxx
-	   (2 байта) 110x xxxx 10xx xxxx
-	   (3 байта) 1110 xxxx 10xx xxxx 10xx xxxx
-	   (4 байта) 1111 0xxx 10xx xxxx 10xx xxxx 10xx xxxx
-	   (5 байт)  1111 10xx 10xx xxxx 10xx xxxx 10xx xxxx 10xx xxxx
-	   (6 байт)  1111 110x 10xx xxxx 10xx xxxx 10xx xxxx 10xx xxxx 10xx xxxx
-	*/
-	if B&0x80 != 0 { //first or next byte utf-8 sequence longer than 1 byte
-		B <<= 1
-		sequenceLen := uint(1)
-		for ; B&0x80 != 0; B <<= 1 {
-			sequenceLen++
-		}
+	for !ok {
+		B := R.Text[R.Index]
 
-		if sequenceLen < 2 {
-			// курсор указывает не на начало последовательности
-		}
-		if sequenceLen > 4 {
-			// курсор указывает на неправильную последовательность
-		}
-
-		aChar = rune(B >> sequenceLen)
-		for i := uint(1); i < sequenceLen; i++ {
-			B = R.Text[R.Index+uint64(i)] //TODO проверка
-			if B&0xC0 == 0x80 {
-				aChar = aChar<<6 | rune(B&0x3F)
-			} else {
-				// неправильная последовательность
+		if B&0x80 != 0 { //first or next byte utf-8 sequence longer than 1 byte
+			B <<= 1
+			sequenceLen := uint(1)
+			for ; B&0x80 != 0; B <<= 1 {
+				sequenceLen++
 			}
+
+			if sequenceLen < 2 {
+				// курсор указывает не на начало последовательности
+				R.Index++
+				if R.Index >= R.Size {
+					return 0, io.EOF
+				}
+				continue
+			}
+			if sequenceLen > 4 {
+				// курсор указывает на неправильную последовательность
+				R.Index++
+				if R.Index >= R.Size {
+					return 0, io.EOF
+				}
+				continue
+			}
+			if R.Index+uint64(sequenceLen)-1 >= R.Size {
+				// последовательность не помещается в буфер
+				return 0, io.EOF
+			}
+
+			aChar = rune(B >> sequenceLen)
+			ok = true;
+
+			for i := uint(1); i < sequenceLen; i++ {
+				B = R.Text[R.Index+uint64(i)]
+
+				// если в старших двух битах B число 2(10xxx xxxx), то это
+				// продолжение последовательности, иначе неправильная
+				// последовательность
+				if B&0xC0 == 0x80 {
+					aChar = aChar<<6 | rune(B&0x3F)
+				} else {
+					R.Index++
+					if R.Index >= R.Size {
+						return 0, io.EOF
+					}
+					ok = false;
+					break
+				}
+			}
+			if ok {
+				size = sequenceLen
+			}
+
+		} else {
+			aChar = rune(B)
+			ok = true;
 		}
-		size = sequenceLen
-	} else {
-		aChar = rune(B)
 	}
 
 	R.PrevIndex = R.Index
