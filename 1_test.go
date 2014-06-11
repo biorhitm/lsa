@@ -122,6 +122,28 @@ func Test_readRune(t *testing.T) {
 	}
 }
 
+func Test_readRune_negarive(t *testing.T) {
+
+	buffer := []uint8 {
+		0x81, 0x24, 0xF8, 0xD0, 0x90,
+	}
+	reader := TReader{
+		Text:      memfs.PBigByteArray(unsafe.Pointer(&buffer[0])),
+		Size:      uint64(len(buffer)),
+		Index:     0,
+		PrevIndex: 0}
+
+	R, E := reader.readRune()
+	if E != nil || R != 0x24 || (reader.Index - reader.PrevIndex) != 1 {
+		t.Fatalf("Ошибка пропускания байтов в середине серии: 10xx xxxx\n")
+	}
+
+	R, E = reader.readRune()
+	if E != nil || R != 0x410 || (reader.Index - reader.PrevIndex) != 2 {
+		t.Fatalf("Ошибка пропускания серии > 4 байтов: 10xx xxxx\n")
+	}
+}
+
 func TestIdentifierParser(t *testing.T) {
 	var S string = "функция среднее арифметическое"
 	buffer, _ := stringToUTF8EncodedByteArray(S)
