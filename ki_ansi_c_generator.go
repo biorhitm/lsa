@@ -128,25 +128,32 @@ func generateFunction(ALexem PLexem) {
 
 /*
 BNF-определения для присваивания выражения переменной
-<ПЕРЕМЕННАЯ> = <АРГУМЕНТ> {<ОПЕРАЦИЯ> <АРГУМЕНТ>}
-ПЕРЕМЕННАЯ = <ИДЕНТИФИКАТОР> {' ' <ИДЕНТИФИКАТОР>}
-АРГУМЕНТ = {'('} <ЧИСЛО>
-RVALUE = <EXPRESSION>
-EXPRESSION = <FLOAT> {'+|-|*|/|%|^' <FLOAT>}
-FLOAT = <INT_NUM>['.'<INT_NUM>]
-INT_NUM = <DIGIT>{<DIGIT>}
-DIGIT = '0'..'9'
-
-<ФОРМУЛА> = <СЛАГАЕМОЕ> {<СЛОЖЕНИЕ> <СЛАГАЕМОЕ>}
-СЛАГАЕМОЕ = <МНОЖИТЕЛЬ> {<УМНОЖЕНИЕ> <МНОЖИТЕЛЬ>}
-<МНОЖИТЕЛЬ> := <ЧИСЛО> | <ПЕРЕМЕННАЯ> | {'('} <ФОРМУЛА> {')'}
-<СЛОЖЕНИЕ> := '+' | '-'
-<УМНОЖЕНИЕ> := '*' | '/'
+<СЛОЖНЫЙ ИДЕНТИФИКАТОР> '=' <ВЫРАЖЕНИЕ>
+СЛОЖНЫЙ ИДЕНТИФИКАТОР = <ИДЕНТИФИКАТОР> {' ' <ИДЕНТИФИКАТОР>}
+ВЫРАЖЕНИЕ = <АРГУМЕНТ> {<ОПЕРАЦИЯ> <АРГУМЕНТ>}
+АРГУМЕНТ = {'('} <ПРОСТОЙ АРГУМЕНТ> {')'}
+ПРОСТОЙ АРГУМЕНТ = <ЧИСЛО> | <СЛОЖНЫЙ ИДЕНТИФИКАТОР> | <ВЫЗОВ ФУНКЦИИ>
+ВЫЗОВ ФУНКЦИИ = <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '(' [<ПАРАМЕТРЫ>] ')'
+ПАРАМЕТРЫ = [<ВЫРАЖЕНИЕ>] {',' [<ВЫРАЖЕНИЕ>]}
+ОПЕРАЦИЯ = '+' | '-' | '*' | '/' | '%' | '^'
 */
-func translateExpression(ALexem PLexem) {
+func (self *TLexem) translateAssignment() (PLexem, error) {
+	return nil, nil
 }
 
-func GenerateCode(ALexem PLexem) {
+/*
+ Переводит текст в лексемах в код на языке С
+*/
+func TranslateCode(ALexem PLexem) (error) {
+	// лексема к которой надо будет вернуться, чтобы продолжить перевод
+	// например, если название переменной состоит из нескольких слов, то
+	// после нахождения знака =, надо будет вернуться к первому слову
+	// переменной, чтобы записать её полное название
+	startLexem := ALexem
+
+	var nextLexem PLexem = nil
+	var E error = nil
+
 	for ALexem != nil {
 		switch ALexem.Type {
 		case ltIdent:
@@ -155,13 +162,27 @@ func GenerateCode(ALexem PLexem) {
 				if keywordId == kwiFunction {
 					generateFunction(ALexem.Next)
 				} else {
-					translateExpression(ALexem)
+					ALexem = ALexem.Next
+				}
+			}
+
+		case ltSymbol:
+			{
+				if ALexem.Text[0] == '=' {
+					nextLexem, E = (*startLexem).translateAssignment()
+					if E != nil {
+						return E
+					}
+					ALexem = nextLexem
+				} else {
+					ALexem = ALexem.Next
 				}
 			}
 
 		case ltEOL:
 			{
 				fmt.Println()
+				ALexem = ALexem.Next
 			}
 
 		default:
@@ -169,10 +190,10 @@ func GenerateCode(ALexem PLexem) {
 				fmt.Printf("Лехема: %d size: %d %s ",
 					ALexem.Type, ALexem.Size, (*ALexem).LexemAsString())
 			}
+			ALexem = ALexem.Next
 		}
-
-		ALexem = ALexem.Next
 	}
 
 	fmt.Printf("----------EOF-----------\n")
+	return nil
 }
