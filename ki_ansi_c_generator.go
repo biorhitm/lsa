@@ -15,6 +15,36 @@ func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
 	return ALexem
 }
 
+type TKeyword struct {
+	Id   int
+	Name string
+}
+
+// KeywordsIds
+const (
+	kwiUnknown = iota
+	kwiFunction
+	kwiProcedure
+)
+
+var (
+	keywordList = []TKeyword{
+		TKeyword{kwiFunction, "функция"},
+		TKeyword{kwiProcedure, "процедура"},
+		TKeyword{kwiUnknown, ""},
+	}
+)
+
+func (self *TLexem) toKeywordId() int {
+	S := (*self).LexemAsString()
+	for i := 0; i < len(keywordList); i++ {
+		if S == keywordList[i].Name {
+			return keywordList[i].Id
+		}
+	}
+	return kwiUnknown
+}
+
 /*
   'функция' <имя функции> '(' {<имя параметра> ':' <тип>} ')'
   <локальные переменные>
@@ -89,7 +119,6 @@ func generateFunction(ALexem PLexem) {
 		if L.Type == ltIdent && (*L).LexemAsString() == "конец" {
 			break
 		}
-		
 		S = (*L).LexemAsString()
 		fmt.Printf("\t%s\n", S)
 		L = L.Next
@@ -97,14 +126,36 @@ func generateFunction(ALexem PLexem) {
 	fmt.Print("}\n")
 }
 
+/*
+BNF-определения для присваивания выражения переменной
+<ПЕРЕМЕННАЯ> = <АРГУМЕНТ> {<ОПЕРАЦИЯ> <АРГУМЕНТ>}
+ПЕРЕМЕННАЯ = <ИДЕНТИФИКАТОР> {' ' <ИДЕНТИФИКАТОР>}
+АРГУМЕНТ = {'('} <ЧИСЛО>
+RVALUE = <EXPRESSION>
+EXPRESSION = <FLOAT> {'+|-|*|/|%|^' <FLOAT>}
+FLOAT = <INT_NUM>['.'<INT_NUM>]
+INT_NUM = <DIGIT>{<DIGIT>}
+DIGIT = '0'..'9'
+
+<ФОРМУЛА> = <СЛАГАЕМОЕ> {<СЛОЖЕНИЕ> <СЛАГАЕМОЕ>}
+СЛАГАЕМОЕ = <МНОЖИТЕЛЬ> {<УМНОЖЕНИЕ> <МНОЖИТЕЛЬ>}
+<МНОЖИТЕЛЬ> := <ЧИСЛО> | <ПЕРЕМЕННАЯ> | {'('} <ФОРМУЛА> {')'}
+<СЛОЖЕНИЕ> := '+' | '-'
+<УМНОЖЕНИЕ> := '*' | '/'
+*/
+func translateExpression(ALexem PLexem) {
+}
+
 func GenerateCode(ALexem PLexem) {
 	for ALexem != nil {
 		switch ALexem.Type {
 		case ltIdent:
 			{
-				S := (*ALexem).LexemAsString()
-				if S == "функция" {
+				keywordId := (*ALexem).toKeywordId()
+				if keywordId == kwiFunction {
 					generateFunction(ALexem.Next)
+				} else {
+					translateExpression(ALexem)
 				}
 			}
 
