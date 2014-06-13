@@ -125,7 +125,7 @@ func (R *TReader) readRune() (aChar rune, E error) {
 			}
 
 			aChar = rune(B >> sequenceLen)
-			ok = true;
+			ok = true
 
 			for i := uint(1); i < sequenceLen; i++ {
 				B = R.Text[R.Index+uint64(i)]
@@ -140,7 +140,7 @@ func (R *TReader) readRune() (aChar rune, E error) {
 					if R.Index >= R.Size {
 						return 0, io.EOF
 					}
-					ok = false;
+					ok = false
 					break
 				}
 			}
@@ -150,7 +150,7 @@ func (R *TReader) readRune() (aChar rune, E error) {
 
 		} else {
 			aChar = rune(B)
-			ok = true;
+			ok = true
 		}
 	}
 
@@ -276,6 +276,11 @@ const (
 	errNoUnterminatedChar
 )
 
+/* TODO: 1. идущие подряд символы переводы строк, интерпретировать как один
+         если следующая строка состоит только из пробельных символов, то
+		её тоже не включать в список лексем
+		 2. Для символьных лексем сделать отдельные типы: assignment, dollar и т.д.
+*/
 func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64) {
 	var curLexem, firstLexem PLexem
 

@@ -1,6 +1,7 @@
 package lsa
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -33,6 +34,13 @@ var (
 		TKeyword{kwiProcedure, "процедура"},
 		TKeyword{kwiUnknown, ""},
 	}
+)
+
+// ошибки синтаксиса
+var (
+	LExpectedExpression = errors.New("Отсутствует выражение после знака =")
+	LSyntaxError        = errors.New("Синтаксическая ошибка")
+	LExpectedArgument   = errors.New("Ожидается операнд")
 )
 
 func (self *TLexem) toKeywordId() int {
@@ -126,25 +134,124 @@ func generateFunction(ALexem PLexem) {
 	fmt.Print("}\n")
 }
 
+func (self *TLexem) skipEOL() PLexem {
+	if self.Type == ltEOL {
+		return self.Next
+	}
+	return self
+}
+
+var parenthesis int = 0
+
+func (L *TLexem) translateArgument() (PLexem, error) {
+	// пропускаю необязательные открывающие скобки
+	for L.Text[0] == '(' {
+		L = L.Next
+		if L.Type == ltEOL {
+			return nil, LExpectedArgument
+		}
+		fmt.Print("(")
+		parenthesis++
+	}
+
+	switch L.Type {
+	case ltNumber:
+		{
+			fmt.Printf("%s", (*L).LexemAsString())
+			L = L.Next
+		}
+
+	default:
+		{
+			return nil, LExpectedArgument
+		}
+	}
+
+	// пропускаю необязательные закрывающие скобки
+	for L.Type != ltEOF && L.Text[0] == ')' {
+		L = L.Next
+		fmt.Print(")")
+		parenthesis--
+	}
+
+	return L, nil
+}
+
 /*
 BNF-определения для присваивания выражения переменной
 <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '=' <ВЫРАЖЕНИЕ>
 СЛОЖНЫЙ ИДЕНТИФИКАТОР = <ИДЕНТИФИКАТОР> {' ' <ИДЕНТИФИКАТОР>}
-ВЫРАЖЕНИЕ = <АРГУМЕНТ> {<ОПЕРАЦИЯ> <АРГУМЕНТ>}
+ВЫРАЖЕНИЕ = [<LF>] <АРГУМЕНТ> [<LF>] {<ОПЕРАЦИЯ> [<LF>] <АРГУМЕНТ> [<LF>]}
 АРГУМЕНТ = {'('} <ПРОСТОЙ АРГУМЕНТ> {')'}
 ПРОСТОЙ АРГУМЕНТ = <ЧИСЛО> | <СЛОЖНЫЙ ИДЕНТИФИКАТОР> | <ВЫЗОВ ФУНКЦИИ>
+  | <СИМВОЛ> | <СТРОКА>
 ВЫЗОВ ФУНКЦИИ = <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '(' [<ПАРАМЕТРЫ>] ')'
 ПАРАМЕТРЫ = [<ВЫРАЖЕНИЕ>] {',' [<ВЫРАЖЕНИЕ>]}
 ОПЕРАЦИЯ = '+' | '-' | '*' | '/' | '%' | '^'
 */
-func (self *TLexem) translateAssignment() (PLexem, error) {
-	return nil, nil
+func (L *TLexem) translateAssignment() (PLexem, error) {
+	var E error
+
+	for L.Type != ltEOF && L.Text != nil && L.Text[0] != '=' {
+		fmt.Printf("%s ", L.LexemAsString())
+		L = L.Next
+	}
+	fmt.Printf("= ")
+
+	if L.Text == nil || L.Text[0] != '=' {
+		return nil, LSyntaxError
+	}
+
+	L = L.Next // пропускаю знак =
+
+	if L.Type == ltEOF {
+		return nil, LExpectedExpression
+	}
+	L = L.skipEOL()
+
+	parenthesis = 0
+
+	// обрабатываю аргумент
+	L, E = L.translateArgument()
+	if E != nil {
+		return nil, E
+	}
+
+	// далее может серия аргументов через знаки операций
+	for L.Type == ltSymbol {
+		op := L.Text[0]
+		if op == ';' {
+			break
+		}
+
+		//TODO: вынести проверку операции в функцию и добавить проверку
+		//      остальных операций: > < >= <= >> << ! ~
+		if op == '+' || op == '-' || op == '*' || op == '/' || op == '%' {
+			fmt.Printf(" %s ", string(op))
+			L = L.Next
+			L, E = L.translateArgument()
+			if E != nil {
+				return nil, E
+			}
+		}
+	}
+
+	fmt.Printf("\n")
+
+	if parenthesis < 0 {
+		fmt.Printf("Слишком много закрывающих скобок\n")
+	}
+	if parenthesis > 0 {
+		fmt.Printf("Слишком много открывающих скобок\n")
+	}
+
+	return L, nil
 }
 
 /*
  Переводит текст в лексемах в код на языке С
 */
-func TranslateCode(ALexem PLexem) (error) {
+func TranslateCode(ALexem PLexem) error {
 	// лексема к которой надо будет вернуться, чтобы продолжить перевод
 	// например, если название переменной состоит из нескольких слов, то
 	// после нахождения знака =, надо будет вернуться к первому слову
