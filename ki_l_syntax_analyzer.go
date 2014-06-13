@@ -19,10 +19,39 @@ const (
 	ltNumber // 12
 	ltString // "test"
 	ltChar   // 'a' 'x' '%'
-	ltSymbol // ! @ # $ % ^ & * () - + = [] {} и т.д.
 	ltIdent  // имя функции, переменной или типа
 	ltEOL
-	ltReservedWord //функция, конец, если и т.д.
+	ltExclamationMark   = '!'
+	ltQuote             = '"'
+	ltSharp             = '#'
+	ltDollar            = '$'
+	ltPercent           = '%'
+	ltAmpersand         = '&'
+	ltSingleQuote       = 39
+	ltOpenParenthesis   = '('
+	ltCloseParenthesis  = ')'
+	ltStar              = '*'
+	ltPlus              = '+'
+	ltComma             = ','
+	ltMinus             = '-'
+	ltDot               = '.'
+	ltSlash             = '/'
+	ltColon             = ':'
+	ltSemicolon         = ';'
+	ltBelowSign         = '<'
+	ltEqualSign         = '='
+	ltAboveSign         = '>'
+	ltQuestionMark      = '?'
+	ltAt                = '@'
+	ltOpenBracket       = '['
+	ltBackSlash         = 92
+	ltCloseBracket      = ']'
+	ltinvolution        = '^'
+	ltBackQuote         = '`'
+	ltOpenShapeBracket  = '{'
+	ltVerticalLine      = '|'
+	ltCloseShapeBracket = '}'
+	ltTilde             = '~'
 )
 
 type TLexem struct {
@@ -169,6 +198,8 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 	L := new(TLexem)
 	L.Type = _type
 	L.Next = nil
+	L.Size = 0
+	L.Text = nil
 
 	switch _type {
 	case ltIdent:
@@ -212,13 +243,6 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 					break
 				}
 			}
-		}
-
-	case ltSymbol:
-		{
-			startIndex = R.PrevIndex
-			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
-			L.Size = 1
 		}
 
 	case ltString:
@@ -319,7 +343,8 @@ func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64
 
 		case isSymbol(C):
 			{
-				curLexem = R.createNewLexem(curLexem, ltSymbol)
+				// код символа будет типом лексемы
+				curLexem = R.createNewLexem(curLexem, TLexemType(C))
 			}
 
 		case C == 0x0A:
