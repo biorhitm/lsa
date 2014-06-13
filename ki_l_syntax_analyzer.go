@@ -67,11 +67,19 @@ func isDigit(C rune) bool {
 	return '0' <= C && C <= '9'
 }
 
+/*
+ Возвращает истину, если аргумент является символом из списка:
+   ! " # $ % & ' ( ) * + , - . /  : ; < = > ? @  [ \ ] ^  `    { | } ~
+   33...                   ...47, 58...   ...64, 91...94, 96, 123...126
+ Тоже самое в числах:
+
+*/
 func isSymbol(C rune) bool {
-	return ('!' <= C && C <= '/') ||
-		(':' <= C && C <= '@') ||
-		('[' <= C && C <= '`') ||
-		('{' <= C && C <= '~')
+	return (33 <= C && C <= 47) ||
+		(58 <= C && C <= 64) ||
+		(91 <= C && C <= 94) ||
+		C == 96 ||
+		(123 <= C && C <= 126)
 }
 
 var InvalidRune = errors.New("Invalid utf8 char, support russian only")
@@ -117,7 +125,7 @@ func (R *TReader) readRune() (aChar rune, E error) {
 			}
 
 			aChar = rune(B >> sequenceLen)
-			ok = true;
+			ok = true
 
 			for i := uint(1); i < sequenceLen; i++ {
 				B = R.Text[R.Index+uint64(i)]
@@ -132,7 +140,7 @@ func (R *TReader) readRune() (aChar rune, E error) {
 					if R.Index >= R.Size {
 						return 0, io.EOF
 					}
-					ok = false;
+					ok = false
 					break
 				}
 			}
@@ -142,7 +150,7 @@ func (R *TReader) readRune() (aChar rune, E error) {
 
 		} else {
 			aChar = rune(B)
-			ok = true;
+			ok = true
 		}
 	}
 
@@ -268,6 +276,11 @@ const (
 	errNoUnterminatedChar
 )
 
+/* TODO: 1. идущие подряд символы переводы строк, интерпретировать как один
+         если следующая строка состоит только из пробельных символов, то
+		её тоже не включать в список лексем
+		 2. Для символьных лексем сделать отдельные типы: assignment, dollar и т.д.
+*/
 func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64) {
 	var curLexem, firstLexem PLexem
 
