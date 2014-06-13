@@ -7,8 +7,10 @@ import (
 
 func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
 	for ALexem != nil {
-		if ALexem.Type == _type && (*ALexem).LexemAsString() == text {
-			return ALexem.Next
+		if ALexem.Type == _type {
+			if text != "" && (*ALexem).LexemAsString() == text {
+				return ALexem.Next
+			}
 		}
 
 		ALexem = ALexem.Next
@@ -218,7 +220,8 @@ func (L *TLexem) translateAssignment() (PLexem, error) {
 	}
 
 	// далее может серия аргументов через знаки операций
-Loop:	for {
+Loop:
+	for {
 		switch L.Type {
 		case ltSemicolon:
 			{
