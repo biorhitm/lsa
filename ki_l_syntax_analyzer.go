@@ -358,5 +358,5 @@ func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64
 
 	R.createNewLexem(curLexem, ltEOF)
 
-	return firstLexem, errNoSuccess, 0
+	return firstLexem.Next, errNoSuccess, 0
 }

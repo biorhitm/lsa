@@ -160,10 +160,6 @@ func TestIdentifierParser(t *testing.T) {
 		t.Fatalf("errorCode: %d", errorCode)
 	}
 
-	plexem = plexem.Next
-	if plexem == nil {
-		t.Fatal("Мало лексем")
-	}
 	if plexem.Type != ltIdent {
 		t.Errorf("Неправильный тип: %d", plexem.Type)
 	}
@@ -221,10 +217,6 @@ func TestNumberParser(t *testing.T) {
 		t.Fatalf("errorCode: %d", errorCode)
 	}
 
-	plexem = plexem.Next
-	if plexem == nil {
-		t.Fatal("Мало лексем")
-	}
 	if plexem.Type != ltIdent {
 		t.Errorf("Неправильный тип: %d", plexem.Type)
 	}
@@ -282,10 +274,6 @@ func TestStringParser(t *testing.T) {
 		t.Fatalf("errorCode: %d", errorCode)
 	}
 
-	plexem = plexem.Next
-	if plexem == nil {
-		t.Fatal("Мало лексем")
-	}
 	if plexem.Type != ltIdent {
 		t.Errorf("Неправильный тип: %d", plexem.Type)
 	}
@@ -347,10 +335,6 @@ func TestCharParser(t *testing.T) {
 		t.Fatalf("errorCode: %d", errorCode)
 	}
 
-	plexem = plexem.Next
-	if plexem == nil {
-		t.Fatal("Мало лексем")
-	}
 	if plexem.Type != ltIdent {
 		t.Errorf("Неправильный тип: %d", plexem.Type)
 	}
