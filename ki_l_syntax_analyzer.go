@@ -73,7 +73,7 @@ type TReader struct {
 func (self *TLexem) LexemAsString() string {
 	S := ""
 
-	if self.Size > 0 {
+	if self.Size > 0 && self.Text != nil {
 		b := make([]uint8, self.Size)
 		for i := 0; i < self.Size; i++ {
 			b[i] = self.Text[i]
