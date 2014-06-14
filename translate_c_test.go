@@ -2,7 +2,6 @@ package lsa
 
 import (
 	"github.com/biorhitm/memfs"
-	"testing"
 	"unsafe"
 )
 
@@ -14,15 +13,11 @@ func stringToLexems(S string) (PLexem, uint, uint64) {
 	return reader.BuildLexems()
 }
 
-func TestTranslateCode(t *testing.T) {
-	plexem, errorCode, _ := stringToLexems(
-		"Результат странной формулы=(1024/((2+2*2)-(17)+((34-5)+12)*(6+7)))")
-	if errorCode != 0 {
-		t.Fail()
+func ExampleTranslateAssignment() {
+	S := "Результат странной формулы=(1024/((2+2*2)-(17)+((34-5)+12)*(6+7)))"
+	L, errorCode, _ := stringToLexems(S)
+	if errorCode == 0 {
+		(*L).translateAssignment()
 	}
-	plexem = plexem.Next
-	plexem, E := (*plexem).translateAssignment()
-	if E != nil {
-		t.Error(E)
-	}
+	//Output: Результат странной формулы = (1024 / ((2 + 2 * 2) - (17) + ((34 - 5) + 12) * (6 + 7)))
 }
