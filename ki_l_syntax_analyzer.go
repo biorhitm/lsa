@@ -7,9 +7,6 @@ import (
 	"unsafe"
 )
 
-type TBigShortArray [0x1FFFFFFFFFFFF]uint16
-type PBigShortArray *TBigShortArray
-
 type TLexemType uint
 
 // TLexemType
@@ -19,10 +16,39 @@ const (
 	ltNumber // 12
 	ltString // "test"
 	ltChar   // 'a' 'x' '%'
-	ltSymbol // ! @ # $ % ^ & * () - + = [] {} и т.д.
 	ltIdent  // имя функции, переменной или типа
 	ltEOL
-	ltReservedWord //функция, конец, если и т.д.
+	ltExclamationMark   = '!'
+	ltQuote             = '"'
+	ltSharp             = '#'
+	ltDollar            = '$'
+	ltPercent           = '%'
+	ltAmpersand         = '&'
+	ltSingleQuote       = 39
+	ltOpenParenthesis   = '('
+	ltCloseParenthesis  = ')'
+	ltStar              = '*'
+	ltPlus              = '+'
+	ltComma             = ','
+	ltMinus             = '-'
+	ltDot               = '.'
+	ltSlash             = '/'
+	ltColon             = ':'
+	ltSemicolon         = ';'
+	ltBelowSign         = '<'
+	ltEqualSign         = '='
+	ltAboveSign         = '>'
+	ltQuestionMark      = '?'
+	ltAt                = '@'
+	ltOpenBracket       = '['
+	ltBackSlash         = 92
+	ltCloseBracket      = ']'
+	ltinvolution        = '^'
+	ltBackQuote         = '`'
+	ltOpenShapeBracket  = '{'
+	ltVerticalLine      = '|'
+	ltCloseShapeBracket = '}'
+	ltTilde             = '~'
 )
 
 type TLexem struct {
@@ -44,7 +70,7 @@ type TReader struct {
 func (self *TLexem) LexemAsString() string {
 	S := ""
 
-	if self.Size > 0 {
+	if self.Size > 0 && self.Text != nil {
 		b := make([]uint8, self.Size)
 		for i := 0; i < self.Size; i++ {
 			b[i] = self.Text[i]
@@ -169,6 +195,8 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 	L := new(TLexem)
 	L.Type = _type
 	L.Next = nil
+	L.Size = 0
+	L.Text = nil
 
 	switch _type {
 	case ltIdent:
@@ -212,13 +240,6 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 					break
 				}
 			}
-		}
-
-	case ltSymbol:
-		{
-			startIndex = R.PrevIndex
-			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
-			L.Size = 1
 		}
 
 	case ltString:
@@ -279,7 +300,6 @@ const (
 /* TODO: 1. идущие подряд символы переводы строк, интерпретировать как один
          если следующая строка состоит только из пробельных символов, то
 		её тоже не включать в список лексем
-		 2. Для символьных лексем сделать отдельные типы: assignment, dollar и т.д.
 */
 func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64) {
 	var curLexem, firstLexem PLexem
@@ -319,7 +339,8 @@ func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64
 
 		case isSymbol(C):
 			{
-				curLexem = R.createNewLexem(curLexem, ltSymbol)
+				// код символа будет типом лексемы
+				curLexem = R.createNewLexem(curLexem, TLexemType(C))
 			}
 
 		case C == 0x0A:
@@ -333,5 +354,5 @@ func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64
 
 	R.createNewLexem(curLexem, ltEOF)
 
-	return firstLexem, errNoSuccess, 0
+	return firstLexem.Next, errNoSuccess, 0
 }

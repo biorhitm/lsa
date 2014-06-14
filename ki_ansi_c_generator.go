@@ -7,8 +7,10 @@ import (
 
 func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
 	for ALexem != nil {
-		if ALexem.Type == _type && (*ALexem).LexemAsString() == text {
-			return ALexem.Next
+		if ALexem.Type == _type {
+			if text != "" && (*ALexem).LexemAsString() == text {
+				return ALexem.Next
+			}
 		}
 
 		ALexem = ALexem.Next
@@ -63,17 +65,17 @@ func generateFunction(ALexem PLexem) {
 	var L PLexem
 	functionName := ALexem
 
-	parameter := getLexemAfterLexem(ALexem, ltSymbol, "(")
+	parameter := getLexemAfterLexem(ALexem, ltOpenParenthesis, "")
 	L = parameter
 	for L != nil {
-		if L.Type == ltSymbol && L.Text[0] == ')' {
+		if L.Type == ltCloseParenthesis {
 			L = L.Next
 			break
 		}
 		L = L.Next
 	}
 
-	if L != nil && L.Text[0] == ':' {
+	if L != nil && L.Type == ltColon {
 		L = L.Next
 	}
 
@@ -95,7 +97,7 @@ func generateFunction(ALexem PLexem) {
 	// печатаю имя функции
 	L = functionName
 	for L != nil {
-		if L.Type == ltSymbol && L.Text[0] == '(' {
+		if L.Type == ltOpenParenthesis {
 			fmt.Print(" (")
 			break
 		}
@@ -108,7 +110,7 @@ func generateFunction(ALexem PLexem) {
 	// печатаю параметры функции
 	L = parameter
 	for L != nil {
-		if L.Type == ltSymbol && L.Text[0] == ')' {
+		if L.Type == ltCloseParenthesis {
 			fmt.Print(" )")
 			break
 		}
@@ -145,7 +147,7 @@ var parenthesis int = 0
 
 func (L *TLexem) translateArgument() (PLexem, error) {
 	// пропускаю необязательные открывающие скобки
-	for L.Text[0] == '(' {
+	for L.Type == ltOpenParenthesis {
 		L = L.Next
 		if L.Type == ltEOL {
 			return nil, LExpectedArgument
@@ -168,7 +170,7 @@ func (L *TLexem) translateArgument() (PLexem, error) {
 	}
 
 	// пропускаю необязательные закрывающие скобки
-	for L.Type != ltEOF && L.Text[0] == ')' {
+	for L.Type == ltCloseParenthesis {
 		L = L.Next
 		fmt.Print(")")
 		parenthesis--
@@ -192,16 +194,16 @@ BNF-определения для присваивания выражения п
 func (L *TLexem) translateAssignment() (PLexem, error) {
 	var E error
 
-	for L.Type != ltEOF && L.Text != nil && L.Text[0] != '=' {
+	for L.Type == ltIdent {
 		fmt.Printf("%s ", L.LexemAsString())
 		L = L.Next
 	}
-	fmt.Printf("= ")
 
-	if L.Text == nil || L.Text[0] != '=' {
+	if L.Type != ltEqualSign {
 		return nil, LSyntaxError
 	}
 
+	fmt.Printf("= ")
 	L = L.Next // пропускаю знак =
 
 	if L.Type == ltEOF {
@@ -218,20 +220,29 @@ func (L *TLexem) translateAssignment() (PLexem, error) {
 	}
 
 	// далее может серия аргументов через знаки операций
-	for L.Type == ltSymbol {
-		op := L.Text[0]
-		if op == ';' {
-			break
-		}
+Loop:
+	for {
+		switch L.Type {
+		case ltSemicolon:
+			{
+				break Loop
+			}
 
 		//TODO: вынести проверку операции в функцию и добавить проверку
 		//      остальных операций: > < >= <= >> << ! ~
-		if op == '+' || op == '-' || op == '*' || op == '/' || op == '%' {
-			fmt.Printf(" %s ", string(op))
-			L = L.Next
-			L, E = L.translateArgument()
-			if E != nil {
-				return nil, E
+		case ltPlus, ltMinus, ltStar, ltSlash, ltPercent:
+			{
+				fmt.Printf(" %c ", L.Type)
+				L = L.Next
+				L, E = L.translateArgument()
+				if E != nil {
+					return nil, E
+				}
+			}
+
+		default:
+			{
+				break Loop
 			}
 		}
 	}
@@ -273,17 +284,13 @@ func TranslateCode(ALexem PLexem) error {
 				}
 			}
 
-		case ltSymbol:
+		case ltEqualSign:
 			{
-				if ALexem.Text[0] == '=' {
-					nextLexem, E = (*startLexem).translateAssignment()
-					if E != nil {
-						return E
-					}
-					ALexem = nextLexem
-				} else {
-					ALexem = ALexem.Next
+				nextLexem, E = (*startLexem).translateAssignment()
+				if E != nil {
+					return E
 				}
+				ALexem = nextLexem
 			}
 
 		case ltEOL:
