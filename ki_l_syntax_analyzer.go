@@ -7,9 +7,6 @@ import (
 	"unsafe"
 )
 
-type TBigShortArray [0x1FFFFFFFFFFFF]uint16
-type PBigShortArray *TBigShortArray
-
 type TLexemType uint
 
 // TLexemType
@@ -303,7 +300,6 @@ const (
 /* TODO: 1. идущие подряд символы переводы строк, интерпретировать как один
          если следующая строка состоит только из пробельных символов, то
 		её тоже не включать в список лексем
-		 2. Для символьных лексем сделать отдельные типы: assignment, dollar и т.д.
 */
 func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64) {
 	var curLexem, firstLexem PLexem
