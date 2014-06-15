@@ -306,8 +306,10 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) (PLexem, error
 				C, err := R.readRune()
 				if err != nil {
 					if err == io.EOF {
-						//TODO выдать ошибку unterminated char
-						break
+						E := EUnterminatedChar
+						E.LineNo = L.LineNo
+						E.ColumnNo = L.ColumnNo
+						err = E
 					}
 					return nil, err
 				}
