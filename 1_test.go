@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/biorhitm/memfs"
 	"io"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -377,9 +379,12 @@ func TestCharParser(t *testing.T) {
 func ExampleUnterminatedStringError() {
 	S := "\n\nС = \"test"
 	_, E := stringToLexems(S)
+	if E != EUnterminatedString {
+		_, file, line, _ := runtime.Caller(0); fmt.Printf("[%v:%v] E != EUnterminatedString\n ", filepath.Base(file), line)
+	}
 	if E != nil {
 		fmt.Print(E.Error())
 		return
 	}
-	//Output: [2:4] Незакрытая строка
+	//Output: [2:4] Незакрытая строка, ожидается "
 }

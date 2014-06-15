@@ -56,6 +56,12 @@ const (
 	LF = 0xA // LineFeed
 )
 
+type lsaError struct {
+	Msg      string
+	LineNo   uint
+	ColumnNo uint
+}
+
 type TLexem struct {
 	Next     PLexem
 	Text     memfs.PBigByteArray
@@ -74,6 +80,15 @@ type TReader struct {
 	NextIndex uint64
 	LineNo    uint
 	ColumnNo  uint
+}
+
+var (
+	EUnterminatedString = &lsaError{Msg: "Незакрытая строка, ожидается \""}
+	EUnterminatedChar   = &lsaError{Msg: "Незакрытый символ, ожидается '"}
+)
+
+func (e *lsaError) Error() string {
+	return fmt.Sprintf("[%v:%v] %v", e.LineNo, e.ColumnNo, e.Msg)
 }
 
 func (self *TLexem) LexemAsString() string {
@@ -268,8 +283,10 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) (PLexem, error
 				C, err := R.readRune()
 				if err != nil {
 					if err == io.EOF {
-						err = fmt.Errorf("[%d:%d] Незакрытая строка",
-							L.LineNo, L.ColumnNo)
+						E := EUnterminatedString
+						E.LineNo = L.LineNo
+						E.ColumnNo = L.ColumnNo
+						err = E
 					}
 					return nil, err
 				}
