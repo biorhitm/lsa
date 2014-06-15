@@ -1,7 +1,6 @@
 package lsa
 
 import (
-	"errors"
 	"fmt"
 )
 
@@ -40,9 +39,11 @@ var (
 
 // ошибки синтаксиса
 var (
-	LExpectedExpression = errors.New("Отсутствует выражение после знака =")
-	LSyntaxError        = errors.New("Синтаксическая ошибка")
-	LExpectedArgument   = errors.New("Ожидается операнд")
+	EExpectedExpression = &lsaError{Msg: "Отсутствует выражение после знака ="}
+	ESyntaxError        = &lsaError{Msg: "Синтаксическая ошибка"}
+	EExpectedArgument   = &lsaError{Msg: "Ожидается операнд"}
+	ETooMuchCloseRB     = &lsaError{Msg: "Слишком много )"}
+	ETooMuchOpenRB      = &lsaError{Msg: "Слишком много ("}
 )
 
 func (self *TLexem) toKeywordId() int {
@@ -145,12 +146,18 @@ func (self *TLexem) skipEOL() PLexem {
 
 var parenthesis int = 0
 
+func (L *TLexem) errorAt(E *lsaError) error {
+	E.LineNo = L.LineNo
+	E.ColumnNo = L.ColumnNo
+	return E
+}
+
 func (L *TLexem) translateArgument() (PLexem, error) {
 	// пропускаю необязательные открывающие скобки
 	for L.Type == ltOpenParenthesis {
 		L = L.Next
 		if L.Type == ltEOL {
-			return nil, LExpectedArgument
+			return nil, L.errorAt(EExpectedArgument)
 		}
 		fmt.Print("(")
 		parenthesis++
@@ -165,7 +172,7 @@ func (L *TLexem) translateArgument() (PLexem, error) {
 
 	default:
 		{
-			return nil, LExpectedArgument
+			return nil, L.errorAt(EExpectedArgument)
 		}
 	}
 
@@ -200,14 +207,14 @@ func (L *TLexem) translateAssignment() (PLexem, error) {
 	}
 
 	if L.Type != ltEqualSign {
-		return nil, LSyntaxError
+		return nil, L.errorAt(ESyntaxError)
 	}
 
 	fmt.Printf("= ")
 	L = L.Next // пропускаю знак =
 
 	if L.Type == ltEOF {
-		return nil, LExpectedExpression
+		return nil, L.errorAt(EExpectedExpression)
 	}
 	L = L.skipEOL()
 
@@ -250,10 +257,10 @@ Loop:
 	fmt.Printf("\n")
 
 	if parenthesis < 0 {
-		fmt.Printf("Слишком много закрывающих скобок\n")
+		return nil, L.errorAt(ETooMuchCloseRB)
 	}
 	if parenthesis > 0 {
-		fmt.Printf("Слишком много открывающих скобок\n")
+		return nil, L.errorAt(ETooMuchOpenRB)
 	}
 
 	return L, nil

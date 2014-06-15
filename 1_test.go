@@ -403,3 +403,51 @@ func ExampleUnterminatedCharError() {
 	}
 	//Output: [7:9] Незакрытый символ, ожидается '
 }
+
+func ExampleError_Syntax() {
+	S := "Самое важное число"
+	L, _ := stringToLexems(S)
+	L, E := (*L).translateAssignment()
+	if E != nil {
+		fmt.Print(E.Error())
+		return
+	}
+	//Output: Самое важное число [0:18] Синтаксическая ошибка
+}
+
+func ExampleError_EExpectedExpression() {
+	S := "Самое важное число ="
+	L, _ := stringToLexems(S)
+	L, E := (*L).translateAssignment()
+	if E != nil {
+		fmt.Print(E.Error())
+		return
+	}
+	//Output: Самое важное число = [0:20] Отсутствует выражение после знака =
+}
+
+func ExampleError_ETooMuchOpenRB() {
+	S := "Самое важное число = ((42)"
+	L, _ := stringToLexems(S)
+	L, E := (*L).translateAssignment()
+	if E != nil {
+		fmt.Print(E.Error())
+		return
+	}
+	//Output:
+	//Самое важное число = ((42)
+	//[0:26] Слишком много (
+}
+
+func ExampleError_ETooMuchCloseRB() {
+	S := "Самое важное число = (42))"
+	L, _ := stringToLexems(S)
+	L, E := (*L).translateAssignment()
+	if E != nil {
+		fmt.Print(E.Error())
+		return
+	}
+	//Output:
+	//Самое важное число = (42))
+	//[0:26] Слишком много )
+}
