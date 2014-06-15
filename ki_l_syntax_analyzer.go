@@ -51,11 +51,17 @@ const (
 	ltTilde             = '~'
 )
 
+const (
+	LF = 0xA // LineFeed
+)
+
 type TLexem struct {
-	Next PLexem
-	Text memfs.PBigByteArray
-	Size int
-	Type TLexemType
+	Next     PLexem
+	Text     memfs.PBigByteArray
+	Size     uint
+	Type     TLexemType
+	LineNo   uint
+	ColumnNo uint
 }
 
 type PLexem *TLexem
@@ -64,7 +70,9 @@ type TReader struct {
 	Text      memfs.PBigByteArray
 	Size      uint64
 	Index     uint64
-	PrevIndex uint64
+	NextIndex uint64
+	LineNo    uint
+	ColumnNo  uint
 }
 
 func (self *TLexem) LexemAsString() string {
@@ -72,7 +80,7 @@ func (self *TLexem) LexemAsString() string {
 
 	if self.Size > 0 && self.Text != nil {
 		b := make([]uint8, self.Size)
-		for i := 0; i < self.Size; i++ {
+		for i := uint(0); i < self.Size; i++ {
 			b[i] = self.Text[i]
 		}
 		S = string(b)
@@ -111,6 +119,15 @@ func isSymbol(C rune) bool {
 var InvalidRune = errors.New("Invalid utf8 char, support russian only")
 
 func (R *TReader) readRune() (aChar rune, E error) {
+
+	if R.NextIndex > R.Index {
+		R.ColumnNo++
+		if R.Text[R.Index] == LF {
+			R.ColumnNo = 0
+			R.LineNo++
+		}
+		R.Index = R.NextIndex
+	}
 
 	if R.Index >= R.Size {
 		return 0, io.EOF
@@ -180,13 +197,12 @@ func (R *TReader) readRune() (aChar rune, E error) {
 		}
 	}
 
-	R.PrevIndex = R.Index
-	R.Index += uint64(size)
+	R.NextIndex = R.Index + uint64(size)
 	return aChar, nil
 }
 
-func (R *TReader) Unread() {
-	R.Index = R.PrevIndex
+func (R *TReader) unread() {
+	R.NextIndex = R.Index
 }
 
 func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
@@ -201,21 +217,20 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 	switch _type {
 	case ltIdent:
 		{
-			R.Unread()
 			startIndex = R.Index
 			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[R.Index]))
 			for {
 				C, err := R.readRune()
 				if err != nil {
 					if err == io.EOF {
-						L.Size = int(R.Index - startIndex)
+						L.Size = uint(R.Index - startIndex)
 						break
 					}
 					return nil //TODO выдать ошибку
 				}
 				if !isIdentLetter(C) && !isDigit(C) {
-					R.Unread()
-					L.Size = int(R.Index - startIndex)
+					R.unread()
+					L.Size = uint(R.Index - startIndex)
 					break
 				}
 			}
@@ -223,20 +238,20 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 
 	case ltNumber:
 		{
-			startIndex = R.PrevIndex
+			startIndex = R.Index
 			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
 			for {
 				C, err := R.readRune()
 				if err != nil {
 					if err == io.EOF {
-						L.Size = int(R.Index - startIndex)
+						L.Size = uint(R.Index - startIndex)
 						break
 					}
 					return nil //TODO выдать ошибку
 				}
 				if !isDigit(C) {
-					R.Unread()
-					L.Size = int(R.Index - startIndex)
+					R.unread()
+					L.Size = uint(R.Index - startIndex)
 					break
 				}
 			}
@@ -244,7 +259,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 
 	case ltString:
 		{
-			startIndex = R.Index
+			startIndex = R.NextIndex
 			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
 			for {
 				C, err := R.readRune()
@@ -256,7 +271,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 					return nil //TODO выдать ошибку
 				}
 				if C == '"' {
-					L.Size = int(R.PrevIndex - startIndex)
+					L.Size = uint(R.Index - startIndex)
 					break
 				}
 			}
@@ -264,7 +279,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 
 	case ltChar:
 		{
-			startIndex = R.Index
+			startIndex = R.NextIndex
 			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
 			//TODO заменить на вызов чтения символа, разрулить спец. послед.
 			for {
@@ -277,7 +292,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 					return nil //TODO выдать ошибку
 				}
 				if C == 0x27 {
-					L.Size = int(R.PrevIndex - startIndex)
+					L.Size = uint(R.Index - startIndex)
 					break
 				}
 			}
@@ -319,11 +334,13 @@ func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64
 		switch {
 		case isIdentLetter(C):
 			{
+				R.unread()
 				curLexem = R.createNewLexem(curLexem, ltIdent)
 			}
 
 		case isDigit(C):
 			{
+				R.unread()
 				curLexem = R.createNewLexem(curLexem, ltNumber)
 			}
 

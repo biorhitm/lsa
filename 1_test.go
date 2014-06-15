@@ -13,10 +13,10 @@ import (
 var global_buffer = make([]uint8, 4000)
 
 func stringToUTF8EncodedByteArray(S string) ([]uint8, error) {
-	L := len(global_buffer)-8
+	L := len(global_buffer) - 8
 	if L < len(S) {
 		return nil, fmt.Errorf("need to increase size of 'global_buffer', to %d",
-		len(S)+8)
+			len(S)+8)
 	}
 	buf := global_buffer[L:]
 
@@ -76,13 +76,12 @@ func Test_readRune(t *testing.T) {
 	var S string = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" +
 		"абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
 
-	buffer,_ := stringToUTF8EncodedByteArray(S)
+	buffer, _ := stringToUTF8EncodedByteArray(S)
 
 	reader := TReader{
-		Text:      memfs.PBigByteArray(unsafe.Pointer(&buffer[0])),
-		Size:      uint64(len(S)),
-		Index:     0,
-		PrevIndex: 0}
+		Text: memfs.PBigByteArray(unsafe.Pointer(&buffer[0])),
+		Size: uint64(len(S)),
+	}
 	stringReader := strings.NewReader(S)
 
 	var E, E1 error
@@ -109,7 +108,7 @@ func Test_readRune(t *testing.T) {
 			t.Fatal()
 		}
 
-		if reader.Index-reader.PrevIndex != 2 {
+		if reader.NextIndex-reader.Index != 2 {
 			t.Fatalf("Rune have invalid size, index: %d", runeNo)
 		}
 
@@ -122,24 +121,23 @@ func Test_readRune(t *testing.T) {
 	}
 }
 
-func Test_readRune_negarive(t *testing.T) {
+func Test_readRune_negative(t *testing.T) {
 
-	buffer := []uint8 {
+	buffer := []uint8{
 		0x81, 0x24, 0xF8, 0xD0, 0x90,
 	}
 	reader := TReader{
-		Text:      memfs.PBigByteArray(unsafe.Pointer(&buffer[0])),
-		Size:      uint64(len(buffer)),
-		Index:     0,
-		PrevIndex: 0}
+		Text: memfs.PBigByteArray(unsafe.Pointer(&buffer[0])),
+		Size: uint64(len(buffer)),
+	}
 
 	R, E := reader.readRune()
-	if E != nil || R != 0x24 || (reader.Index - reader.PrevIndex) != 1 {
+	if E != nil || R != 0x24 || (reader.NextIndex-reader.Index) != 1 {
 		t.Fatalf("Ошибка пропускания байтов в середине серии: 10xx xxxx\n")
 	}
 
 	R, E = reader.readRune()
-	if E != nil || R != 0x410 || (reader.Index - reader.PrevIndex) != 2 {
+	if E != nil || R != 0x410 || (reader.NextIndex-reader.Index) != 2 {
 		t.Fatalf("Ошибка пропускания серии > 4 байтов: 10xx xxxx\n")
 	}
 }
@@ -149,10 +147,9 @@ func TestIdentifierParser(t *testing.T) {
 	buffer, _ := stringToUTF8EncodedByteArray(S)
 
 	R := TReader{
-		Text:      memfs.PBigByteArray(unsafe.Pointer(&buffer[0])),
-		Size:      uint64(len(S)),
-		Index:     0,
-		PrevIndex: 0}
+		Text: memfs.PBigByteArray(unsafe.Pointer(&buffer[0])),
+		Size: uint64(len(S)),
+	}
 
 	plexem, errorCode, _ := R.BuildLexems()
 
@@ -206,10 +203,9 @@ func TestNumberParser(t *testing.T) {
 	buf, _ := stringToUTF8EncodedByteArray(S)
 
 	R := TReader{
-		Text:      memfs.PBigByteArray(unsafe.Pointer(&buf[0])),
-		Size:      uint64(len(buf)),
-		Index:     0,
-		PrevIndex: 0}
+		Text: memfs.PBigByteArray(unsafe.Pointer(&buf[0])),
+		Size: uint64(len(buf)),
+	}
 
 	plexem, errorCode, _ := R.BuildLexems()
 
@@ -263,10 +259,9 @@ func TestStringParser(t *testing.T) {
 	buf, _ := stringToUTF8EncodedByteArray(S)
 
 	R := TReader{
-		Text:      memfs.PBigByteArray(unsafe.Pointer(&buf[0])),
-		Size:      uint64(len(buf)),
-		Index:     0,
-		PrevIndex: 0}
+		Text: memfs.PBigByteArray(unsafe.Pointer(&buf[0])),
+		Size: uint64(len(buf)),
+	}
 
 	plexem, errorCode, _ := R.BuildLexems()
 
@@ -324,10 +319,9 @@ func TestCharParser(t *testing.T) {
 	buf, _ := stringToUTF8EncodedByteArray(S)
 
 	R := TReader{
-		Text:      memfs.PBigByteArray(unsafe.Pointer(&buf[0])),
-		Size:      uint64(len(buf)),
-		Index:     0,
-		PrevIndex: 0}
+		Text: memfs.PBigByteArray(unsafe.Pointer(&buf[0])),
+		Size: uint64(len(buf)),
+	}
 
 	plexem, errorCode, _ := R.BuildLexems()
 
