@@ -327,13 +327,6 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) (PLexem, error
 	return L, nil
 }
 
-// Error codes
-const (
-	errNoSuccess = iota
-	errNoUnterminatedString
-	errNoUnterminatedChar
-)
-
 /* TODO: 1. идущие подряд символы переводы строк, интерпретировать как один
          если следующая строка состоит только из пробельных символов, то
 		её тоже не включать в список лексем
