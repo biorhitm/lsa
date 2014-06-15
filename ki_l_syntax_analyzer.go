@@ -205,7 +205,7 @@ func (R *TReader) unread() {
 	R.NextIndex = R.Index
 }
 
-func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
+func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) (PLexem, error) {
 	var startIndex uint64 = 0
 
 	L := new(TLexem)
@@ -226,7 +226,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 						L.Size = uint(R.Index - startIndex)
 						break
 					}
-					return nil //TODO выдать ошибку
+					return nil, err
 				}
 				if !isIdentLetter(C) && !isDigit(C) {
 					R.unread()
@@ -247,7 +247,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 						L.Size = uint(R.Index - startIndex)
 						break
 					}
-					return nil //TODO выдать ошибку
+					return nil, err
 				}
 				if !isDigit(C) {
 					R.unread()
@@ -268,7 +268,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 						//TODO выдать ошибку unterminated string
 						break
 					}
-					return nil //TODO выдать ошибку
+					return nil, err
 				}
 				if C == '"' {
 					L.Size = uint(R.Index - startIndex)
@@ -289,7 +289,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 						//TODO выдать ошибку unterminated char
 						break
 					}
-					return nil //TODO выдать ошибку
+					return nil, err
 				}
 				if C == 0x27 {
 					L.Size = uint(R.Index - startIndex)
@@ -302,7 +302,7 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 	if parent != nil {
 		parent.Next = L
 	}
-	return L
+	return L, nil
 }
 
 // Error codes
@@ -335,37 +335,44 @@ func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64
 		case isIdentLetter(C):
 			{
 				R.unread()
-				curLexem = R.createNewLexem(curLexem, ltIdent)
+				curLexem, err = R.createNewLexem(curLexem, ltIdent)
 			}
 
 		case isDigit(C):
 			{
 				R.unread()
-				curLexem = R.createNewLexem(curLexem, ltNumber)
+				curLexem, err = R.createNewLexem(curLexem, ltNumber)
 			}
 
 		case C == '"':
 			{
-				curLexem = R.createNewLexem(curLexem, ltString)
+				curLexem, err = R.createNewLexem(curLexem, ltString)
 			}
 
 		case C == 0x27: //single quote
 			{
-				curLexem = R.createNewLexem(curLexem, ltChar)
+				curLexem, err = R.createNewLexem(curLexem, ltChar)
 			}
 
 		case isSymbol(C):
 			{
 				// код символа будет типом лексемы
-				curLexem = R.createNewLexem(curLexem, TLexemType(C))
+				curLexem, err = R.createNewLexem(curLexem, TLexemType(C))
 			}
 
 		case C == 0x0A:
 			{
-				curLexem = R.createNewLexem(curLexem, ltEOL)
+				curLexem, err = R.createNewLexem(curLexem, ltEOL)
 			}
 
 		default:
+		}
+
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, 1, R.Index
 		}
 	}
 
