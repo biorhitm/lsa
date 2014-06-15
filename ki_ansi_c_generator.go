@@ -4,6 +4,23 @@ import (
 	"fmt"
 )
 
+type TLanguageItemType uint
+
+//TLanguageItemType типы синтаксичекских элементов
+const (
+	ltitUnknown = iota
+	ltitEOF
+	ltitIdent
+	ltitAssignment
+)
+
+type TLanguageItem struct {
+	Type TLanguageItemType
+	// идентификаторы будут держать здесь номер строки из массива
+	// всех идентификаторов
+	Index uint
+}
+
 func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
 	for ALexem != nil {
 		if ALexem.Type == _type {
