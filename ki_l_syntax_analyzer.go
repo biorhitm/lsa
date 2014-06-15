@@ -2,6 +2,7 @@ package lsa
 
 import (
 	"errors"
+	"fmt"
 	"github.com/biorhitm/memfs"
 	"io"
 	"unsafe"
@@ -51,11 +52,23 @@ const (
 	ltTilde             = '~'
 )
 
+const (
+	LF = 0xA // LineFeed
+)
+
+type lsaError struct {
+	Msg      string
+	LineNo   uint
+	ColumnNo uint
+}
+
 type TLexem struct {
-	Next PLexem
-	Text memfs.PBigByteArray
-	Size int
-	Type TLexemType
+	Next     PLexem
+	Text     memfs.PBigByteArray
+	Size     uint
+	Type     TLexemType
+	LineNo   uint
+	ColumnNo uint
 }
 
 type PLexem *TLexem
@@ -64,7 +77,18 @@ type TReader struct {
 	Text      memfs.PBigByteArray
 	Size      uint64
 	Index     uint64
-	PrevIndex uint64
+	NextIndex uint64
+	LineNo    uint
+	ColumnNo  uint
+}
+
+var (
+	EUnterminatedString = &lsaError{Msg: "Незакрытая строка, ожидается \""}
+	EUnterminatedChar   = &lsaError{Msg: "Незакрытый символ, ожидается '"}
+)
+
+func (e *lsaError) Error() string {
+	return fmt.Sprintf("[%v:%v] %v", e.LineNo, e.ColumnNo, e.Msg)
 }
 
 func (self *TLexem) LexemAsString() string {
@@ -72,7 +96,7 @@ func (self *TLexem) LexemAsString() string {
 
 	if self.Size > 0 && self.Text != nil {
 		b := make([]uint8, self.Size)
-		for i := 0; i < self.Size; i++ {
+		for i := uint(0); i < self.Size; i++ {
 			b[i] = self.Text[i]
 		}
 		S = string(b)
@@ -111,6 +135,15 @@ func isSymbol(C rune) bool {
 var InvalidRune = errors.New("Invalid utf8 char, support russian only")
 
 func (R *TReader) readRune() (aChar rune, E error) {
+
+	if R.NextIndex > R.Index {
+		R.ColumnNo++
+		if R.Text[R.Index] == LF {
+			R.ColumnNo = 0
+			R.LineNo++
+		}
+		R.Index = R.NextIndex
+	}
 
 	if R.Index >= R.Size {
 		return 0, io.EOF
@@ -180,16 +213,15 @@ func (R *TReader) readRune() (aChar rune, E error) {
 		}
 	}
 
-	R.PrevIndex = R.Index
-	R.Index += uint64(size)
+	R.NextIndex = R.Index + uint64(size)
 	return aChar, nil
 }
 
-func (R *TReader) Unread() {
-	R.Index = R.PrevIndex
+func (R *TReader) unread() {
+	R.NextIndex = R.Index
 }
 
-func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
+func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) (PLexem, error) {
 	var startIndex uint64 = 0
 
 	L := new(TLexem)
@@ -197,25 +229,26 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 	L.Next = nil
 	L.Size = 0
 	L.Text = nil
+	L.LineNo = R.LineNo
+	L.ColumnNo = R.ColumnNo
 
 	switch _type {
 	case ltIdent:
 		{
-			R.Unread()
 			startIndex = R.Index
 			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[R.Index]))
 			for {
 				C, err := R.readRune()
 				if err != nil {
 					if err == io.EOF {
-						L.Size = int(R.Index - startIndex)
+						L.Size = uint(R.Index - startIndex)
 						break
 					}
-					return nil //TODO выдать ошибку
+					return nil, err
 				}
 				if !isIdentLetter(C) && !isDigit(C) {
-					R.Unread()
-					L.Size = int(R.Index - startIndex)
+					R.unread()
+					L.Size = uint(R.Index - startIndex)
 					break
 				}
 			}
@@ -223,20 +256,20 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 
 	case ltNumber:
 		{
-			startIndex = R.PrevIndex
+			startIndex = R.Index
 			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
 			for {
 				C, err := R.readRune()
 				if err != nil {
 					if err == io.EOF {
-						L.Size = int(R.Index - startIndex)
+						L.Size = uint(R.Index - startIndex)
 						break
 					}
-					return nil //TODO выдать ошибку
+					return nil, err
 				}
 				if !isDigit(C) {
-					R.Unread()
-					L.Size = int(R.Index - startIndex)
+					R.unread()
+					L.Size = uint(R.Index - startIndex)
 					break
 				}
 			}
@@ -244,19 +277,21 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 
 	case ltString:
 		{
-			startIndex = R.Index
+			startIndex = R.NextIndex
 			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
 			for {
 				C, err := R.readRune()
 				if err != nil {
 					if err == io.EOF {
-						//TODO выдать ошибку unterminated string
-						break
+						E := EUnterminatedString
+						E.LineNo = L.LineNo
+						E.ColumnNo = L.ColumnNo
+						err = E
 					}
-					return nil //TODO выдать ошибку
+					return nil, err
 				}
 				if C == '"' {
-					L.Size = int(R.PrevIndex - startIndex)
+					L.Size = uint(R.Index - startIndex)
 					break
 				}
 			}
@@ -264,20 +299,22 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 
 	case ltChar:
 		{
-			startIndex = R.Index
+			startIndex = R.NextIndex
 			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
 			//TODO заменить на вызов чтения символа, разрулить спец. послед.
 			for {
 				C, err := R.readRune()
 				if err != nil {
 					if err == io.EOF {
-						//TODO выдать ошибку unterminated char
-						break
+						E := EUnterminatedChar
+						E.LineNo = L.LineNo
+						E.ColumnNo = L.ColumnNo
+						err = E
 					}
-					return nil //TODO выдать ошибку
+					return nil, err
 				}
 				if C == 0x27 {
-					L.Size = int(R.PrevIndex - startIndex)
+					L.Size = uint(R.Index - startIndex)
 					break
 				}
 			}
@@ -287,21 +324,14 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) PLexem {
 	if parent != nil {
 		parent.Next = L
 	}
-	return L
+	return L, nil
 }
-
-// Error codes
-const (
-	errNoSuccess = iota
-	errNoUnterminatedString
-	errNoUnterminatedChar
-)
 
 /* TODO: 1. идущие подряд символы переводы строк, интерпретировать как один
          если следующая строка состоит только из пробельных символов, то
 		её тоже не включать в список лексем
 */
-func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64) {
+func (R *TReader) BuildLexems() (PLexem, error) {
 	var curLexem, firstLexem PLexem
 
 	curLexem = new(TLexem)
@@ -313,46 +343,55 @@ func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64
 			if err == io.EOF {
 				break
 			}
-			return nil, 1, R.Index
+			return nil, err
 		}
 
 		switch {
 		case isIdentLetter(C):
 			{
-				curLexem = R.createNewLexem(curLexem, ltIdent)
+				R.unread()
+				curLexem, err = R.createNewLexem(curLexem, ltIdent)
 			}
 
 		case isDigit(C):
 			{
-				curLexem = R.createNewLexem(curLexem, ltNumber)
+				R.unread()
+				curLexem, err = R.createNewLexem(curLexem, ltNumber)
 			}
 
 		case C == '"':
 			{
-				curLexem = R.createNewLexem(curLexem, ltString)
+				curLexem, err = R.createNewLexem(curLexem, ltString)
 			}
 
 		case C == 0x27: //single quote
 			{
-				curLexem = R.createNewLexem(curLexem, ltChar)
+				curLexem, err = R.createNewLexem(curLexem, ltChar)
 			}
 
 		case isSymbol(C):
 			{
 				// код символа будет типом лексемы
-				curLexem = R.createNewLexem(curLexem, TLexemType(C))
+				curLexem, err = R.createNewLexem(curLexem, TLexemType(C))
 			}
 
 		case C == 0x0A:
 			{
-				curLexem = R.createNewLexem(curLexem, ltEOL)
+				curLexem, err = R.createNewLexem(curLexem, ltEOL)
 			}
 
 		default:
+		}
+
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
 		}
 	}
 
 	R.createNewLexem(curLexem, ltEOF)
 
-	return firstLexem.Next, errNoSuccess, 0
+	return firstLexem.Next, nil
 }
