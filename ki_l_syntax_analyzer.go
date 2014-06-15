@@ -2,6 +2,7 @@ package lsa
 
 import (
 	"errors"
+	"fmt"
 	"github.com/biorhitm/memfs"
 	"io"
 	"unsafe"
@@ -213,6 +214,8 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) (PLexem, error
 	L.Next = nil
 	L.Size = 0
 	L.Text = nil
+	L.LineNo = R.LineNo
+	L.ColumnNo = R.ColumnNo
 
 	switch _type {
 	case ltIdent:
@@ -265,8 +268,8 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) (PLexem, error
 				C, err := R.readRune()
 				if err != nil {
 					if err == io.EOF {
-						//TODO выдать ошибку unterminated string
-						break
+						err = fmt.Errorf("[%d:%d] Незакрытая строка",
+							L.LineNo, L.ColumnNo)
 					}
 					return nil, err
 				}
@@ -316,7 +319,7 @@ const (
          если следующая строка состоит только из пробельных символов, то
 		её тоже не включать в список лексем
 */
-func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64) {
+func (R *TReader) BuildLexems() (PLexem, error) {
 	var curLexem, firstLexem PLexem
 
 	curLexem = new(TLexem)
@@ -328,7 +331,7 @@ func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64
 			if err == io.EOF {
 				break
 			}
-			return nil, 1, R.Index
+			return nil, err
 		}
 
 		switch {
@@ -372,11 +375,11 @@ func (R *TReader) BuildLexems() (lexem PLexem, errorCode uint, errorIndex uint64
 			if err == io.EOF {
 				break
 			}
-			return nil, 1, R.Index
+			return nil, err
 		}
 	}
 
 	R.createNewLexem(curLexem, ltEOF)
 
-	return firstLexem.Next, errNoSuccess, 0
+	return firstLexem.Next, nil
 }

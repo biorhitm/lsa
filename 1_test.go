@@ -151,10 +151,10 @@ func TestIdentifierParser(t *testing.T) {
 		Size: uint64(len(S)),
 	}
 
-	plexem, errorCode, _ := R.BuildLexems()
+	plexem, E := R.BuildLexems()
 
-	if errorCode != 0 {
-		t.Fatalf("errorCode: %d", errorCode)
+	if E != nil {
+		t.Fatal(E.Error())
 	}
 
 	if plexem.Type != ltIdent {
@@ -207,10 +207,10 @@ func TestNumberParser(t *testing.T) {
 		Size: uint64(len(buf)),
 	}
 
-	plexem, errorCode, _ := R.BuildLexems()
+	plexem, E := R.BuildLexems()
 
-	if errorCode != 0 {
-		t.Fatalf("errorCode: %d", errorCode)
+	if E != nil {
+		t.Fatal(E.Error())
 	}
 
 	if plexem.Type != ltIdent {
@@ -263,10 +263,10 @@ func TestStringParser(t *testing.T) {
 		Size: uint64(len(buf)),
 	}
 
-	plexem, errorCode, _ := R.BuildLexems()
+	plexem, E := R.BuildLexems()
 
-	if errorCode != 0 {
-		t.Fatalf("errorCode: %d", errorCode)
+	if E != nil {
+		t.Fatal(E.Error())
 	}
 
 	if plexem.Type != ltIdent {
@@ -323,10 +323,10 @@ func TestCharParser(t *testing.T) {
 		Size: uint64(len(buf)),
 	}
 
-	plexem, errorCode, _ := R.BuildLexems()
+	plexem, E := R.BuildLexems()
 
-	if errorCode != 0 {
-		t.Fatalf("errorCode: %d", errorCode)
+	if E != nil {
+		t.Fatal(E.Error())
 	}
 
 	if plexem.Type != ltIdent {
@@ -372,4 +372,14 @@ func TestCharParser(t *testing.T) {
 	if plexem.Type != ltEOF {
 		t.Errorf("Неправильный тип: %d", plexem.Type)
 	}
+}
+
+func ExampleUnterminatedStringError() {
+	S := "\n\nС = \"test"
+	_, E := stringToLexems(S)
+	if E != nil {
+		fmt.Print(E.Error())
+		return
+	}
+	//Output: [2:4] Незакрытая строка
 }
