@@ -1,9 +1,28 @@
 package lsa
 
 import (
-	"errors"
 	"fmt"
 )
+
+type TLanguageItemType uint
+
+//TLanguageItemType типы синтаксичекских элементов
+const (
+	ltitUnknown = TLanguageItemType(iota)
+	ltitEOF
+	ltitIdent
+	ltitAssignment
+	ltitOpenParenthesis
+	ltitCloseParenthesis
+	ltitNumber
+)
+
+type TLanguageItem struct {
+	Type TLanguageItemType
+	// идентификаторы будут держать здесь номер строки из массива
+	// всех идентификаторов
+	Index uint
+}
 
 func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
 	for ALexem != nil {
@@ -40,10 +59,15 @@ var (
 
 // ошибки синтаксиса
 var (
-	LExpectedExpression = errors.New("Отсутствует выражение после знака =")
-	LSyntaxError        = errors.New("Синтаксическая ошибка")
-	LExpectedArgument   = errors.New("Ожидается операнд")
+	EExpectedExpression = &lsaError{Msg: "Отсутствует выражение после знака ="}
+	ESyntaxError        = &lsaError{Msg: "Синтаксическая ошибка"}
+	EExpectedArgument   = &lsaError{Msg: "Ожидается операнд"}
+	ETooMuchCloseRB     = &lsaError{Msg: "Слишком много )"}
+	ETooMuchOpenRB      = &lsaError{Msg: "Слишком много ("}
 )
+
+var strNumbers = make([]string, 0, 1024)
+var strIdents = make([]string, 0, 1024)
 
 func (self *TLexem) toKeywordId() int {
 	S := (*self).LexemAsString()
@@ -145,38 +169,55 @@ func (self *TLexem) skipEOL() PLexem {
 
 var parenthesis int = 0
 
-func (L *TLexem) translateArgument() (PLexem, error) {
+func (L *TLexem) errorAt(E *lsaError) error {
+	E.LineNo = L.LineNo
+	E.ColumnNo = L.ColumnNo
+	return E
+}
+
+/*
+АРГУМЕНТ = {'('} <ПРОСТОЙ АРГУМЕНТ> {')'}
+ПРОСТОЙ АРГУМЕНТ = <ЧИСЛО> | <СЛОЖНЫЙ ИДЕНТИФИКАТОР> | <ВЫЗОВ ФУНКЦИИ>
+  | <СИМВОЛ> | <СТРОКА>
+ВЫЗОВ ФУНКЦИИ = <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '(' [<ПАРАМЕТРЫ>] ')'
+ПАРАМЕТРЫ = [<ВЫРАЖЕНИЕ>] {',' [<ВЫРАЖЕНИЕ>]}
+*/
+func (L *TLexem) translateArgument() ([]TLanguageItem, error) {
+	var result = make([]TLanguageItem, 0, 4000)
+	var item TLanguageItem
+
 	// пропускаю необязательные открывающие скобки
 	for L.Type == ltOpenParenthesis {
 		L = L.Next
-		if L.Type == ltEOL {
-			return nil, LExpectedArgument
-		}
-		fmt.Print("(")
+		item = TLanguageItem{Type: ltitOpenParenthesis}
+		result = append(result, item)
 		parenthesis++
 	}
 
 	switch L.Type {
 	case ltNumber:
 		{
-			fmt.Printf("%s", (*L).LexemAsString())
+			item = TLanguageItem{Type: ltitNumber, Index: uint(len(strNumbers))}
+			result = append(result, item)
+			strNumbers = append(strNumbers, (*L).LexemAsString())
 			L = L.Next
 		}
 
 	default:
 		{
-			return nil, LExpectedArgument
+			return nil, L.errorAt(EExpectedArgument)
 		}
 	}
 
 	// пропускаю необязательные закрывающие скобки
 	for L.Type == ltCloseParenthesis {
 		L = L.Next
-		fmt.Print(")")
+		item = TLanguageItem{Type: ltitCloseParenthesis}
+		result = append(result, item)
 		parenthesis--
 	}
 
-	return L, nil
+	return result, nil
 }
 
 /*
@@ -184,11 +225,6 @@ BNF-определения для присваивания выражения п
 <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '=' <ВЫРАЖЕНИЕ>
 СЛОЖНЫЙ ИДЕНТИФИКАТОР = <ИДЕНТИФИКАТОР> {' ' <ИДЕНТИФИКАТОР>}
 ВЫРАЖЕНИЕ = [<LF>] <АРГУМЕНТ> [<LF>] {<ОПЕРАЦИЯ> [<LF>] <АРГУМЕНТ> [<LF>]}
-АРГУМЕНТ = {'('} <ПРОСТОЙ АРГУМЕНТ> {')'}
-ПРОСТОЙ АРГУМЕНТ = <ЧИСЛО> | <СЛОЖНЫЙ ИДЕНТИФИКАТОР> | <ВЫЗОВ ФУНКЦИИ>
-  | <СИМВОЛ> | <СТРОКА>
-ВЫЗОВ ФУНКЦИИ = <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '(' [<ПАРАМЕТРЫ>] ')'
-ПАРАМЕТРЫ = [<ВЫРАЖЕНИЕ>] {',' [<ВЫРАЖЕНИЕ>]}
 ОПЕРАЦИЯ = '+' | '-' | '*' | '/' | '%' | '^'
 */
 func (L *TLexem) translateAssignment() (PLexem, error) {
@@ -200,21 +236,21 @@ func (L *TLexem) translateAssignment() (PLexem, error) {
 	}
 
 	if L.Type != ltEqualSign {
-		return nil, LSyntaxError
+		return nil, L.errorAt(ESyntaxError)
 	}
 
 	fmt.Printf("= ")
 	L = L.Next // пропускаю знак =
 
 	if L.Type == ltEOF {
-		return nil, LExpectedExpression
+		return nil, L.errorAt(EExpectedExpression)
 	}
 	L = L.skipEOL()
 
 	parenthesis = 0
 
 	// обрабатываю аргумент
-	L, E = L.translateArgument()
+	//L, E = L.translateArgument()
 	if E != nil {
 		return nil, E
 	}
@@ -234,10 +270,11 @@ Loop:
 			{
 				fmt.Printf(" %c ", L.Type)
 				L = L.Next
-				L, E = L.translateArgument()
-				if E != nil {
-					return nil, E
-				}
+				/*				L, E = L.translateArgument()
+								if E != nil {
+									return nil, E
+								}
+				*/
 			}
 
 		default:
@@ -250,10 +287,10 @@ Loop:
 	fmt.Printf("\n")
 
 	if parenthesis < 0 {
-		fmt.Printf("Слишком много закрывающих скобок\n")
+		return nil, L.errorAt(ETooMuchCloseRB)
 	}
 	if parenthesis > 0 {
-		fmt.Printf("Слишком много открывающих скобок\n")
+		return nil, L.errorAt(ETooMuchOpenRB)
 	}
 
 	return L, nil
