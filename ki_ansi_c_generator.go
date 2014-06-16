@@ -8,10 +8,13 @@ type TLanguageItemType uint
 
 //TLanguageItemType типы синтаксичекских элементов
 const (
-	ltitUnknown = iota
+	ltitUnknown = TLanguageItemType(iota)
 	ltitEOF
 	ltitIdent
 	ltitAssignment
+	ltitOpenParenthesis
+	ltitCloseParenthesis
+	ltitNumber
 )
 
 type TLanguageItem struct {
@@ -62,6 +65,9 @@ var (
 	ETooMuchCloseRB     = &lsaError{Msg: "Слишком много )"}
 	ETooMuchOpenRB      = &lsaError{Msg: "Слишком много ("}
 )
+
+var strNumbers = make([]string, 0, 1024)
+var strIdents = make([]string, 0, 1024)
 
 func (self *TLexem) toKeywordId() int {
 	S := (*self).LexemAsString()
@@ -169,21 +175,31 @@ func (L *TLexem) errorAt(E *lsaError) error {
 	return E
 }
 
-func (L *TLexem) translateArgument() (PLexem, error) {
+/*
+АРГУМЕНТ = {'('} <ПРОСТОЙ АРГУМЕНТ> {')'}
+ПРОСТОЙ АРГУМЕНТ = <ЧИСЛО> | <СЛОЖНЫЙ ИДЕНТИФИКАТОР> | <ВЫЗОВ ФУНКЦИИ>
+  | <СИМВОЛ> | <СТРОКА>
+ВЫЗОВ ФУНКЦИИ = <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '(' [<ПАРАМЕТРЫ>] ')'
+ПАРАМЕТРЫ = [<ВЫРАЖЕНИЕ>] {',' [<ВЫРАЖЕНИЕ>]}
+*/
+func (L *TLexem) translateArgument() ([]TLanguageItem, error) {
+	var result = make([]TLanguageItem, 0, 4000)
+	var item TLanguageItem
+
 	// пропускаю необязательные открывающие скобки
 	for L.Type == ltOpenParenthesis {
 		L = L.Next
-		if L.Type == ltEOL {
-			return nil, L.errorAt(EExpectedArgument)
-		}
-		fmt.Print("(")
+		item = TLanguageItem{Type: ltitOpenParenthesis}
+		result = append(result, item)
 		parenthesis++
 	}
 
 	switch L.Type {
 	case ltNumber:
 		{
-			fmt.Printf("%s", (*L).LexemAsString())
+			item = TLanguageItem{Type: ltitNumber, Index: uint(len(strNumbers))}
+			result = append(result, item)
+			strNumbers = append(strNumbers, (*L).LexemAsString())
 			L = L.Next
 		}
 
@@ -196,11 +212,12 @@ func (L *TLexem) translateArgument() (PLexem, error) {
 	// пропускаю необязательные закрывающие скобки
 	for L.Type == ltCloseParenthesis {
 		L = L.Next
-		fmt.Print(")")
+		item = TLanguageItem{Type: ltitCloseParenthesis}
+		result = append(result, item)
 		parenthesis--
 	}
 
-	return L, nil
+	return result, nil
 }
 
 /*
@@ -208,11 +225,6 @@ BNF-определения для присваивания выражения п
 <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '=' <ВЫРАЖЕНИЕ>
 СЛОЖНЫЙ ИДЕНТИФИКАТОР = <ИДЕНТИФИКАТОР> {' ' <ИДЕНТИФИКАТОР>}
 ВЫРАЖЕНИЕ = [<LF>] <АРГУМЕНТ> [<LF>] {<ОПЕРАЦИЯ> [<LF>] <АРГУМЕНТ> [<LF>]}
-АРГУМЕНТ = {'('} <ПРОСТОЙ АРГУМЕНТ> {')'}
-ПРОСТОЙ АРГУМЕНТ = <ЧИСЛО> | <СЛОЖНЫЙ ИДЕНТИФИКАТОР> | <ВЫЗОВ ФУНКЦИИ>
-  | <СИМВОЛ> | <СТРОКА>
-ВЫЗОВ ФУНКЦИИ = <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '(' [<ПАРАМЕТРЫ>] ')'
-ПАРАМЕТРЫ = [<ВЫРАЖЕНИЕ>] {',' [<ВЫРАЖЕНИЕ>]}
 ОПЕРАЦИЯ = '+' | '-' | '*' | '/' | '%' | '^'
 */
 func (L *TLexem) translateAssignment() (PLexem, error) {
@@ -238,7 +250,7 @@ func (L *TLexem) translateAssignment() (PLexem, error) {
 	parenthesis = 0
 
 	// обрабатываю аргумент
-	L, E = L.translateArgument()
+	//L, E = L.translateArgument()
 	if E != nil {
 		return nil, E
 	}
@@ -258,10 +270,11 @@ Loop:
 			{
 				fmt.Printf(" %c ", L.Type)
 				L = L.Next
-				L, E = L.translateArgument()
-				if E != nil {
-					return nil, E
-				}
+				/*				L, E = L.translateArgument()
+								if E != nil {
+									return nil, E
+								}
+				*/
 			}
 
 		default:
