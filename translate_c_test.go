@@ -20,21 +20,22 @@ func TestTranslateArgument(t *testing.T) {
 	if E != nil {
 		t.Fatal(E.Error())
 	}
+	languageItems := []TLanguageItem{
+		{ltitOpenParenthesis, 0},
+		{ltitOpenParenthesis, 0},
+		{ltitNumber, 0},
+		{ltitCloseParenthesis, 0},
+		{ltitCloseParenthesis, 0},
+	}
 	items, E := (*L).translateArgument()
-	if len(items) != 5 {
+	if len(items) != len(languageItems) {
 		t.Fatal()
 	}
-	if items[0].Type != ltitOpenParenthesis ||
-		items[1].Type != ltitOpenParenthesis {
-		t.Fatal()
-	}
-	if items[2].Type != ltitNumber &&
-		strNumbers[items[2].Index] != "42" {
-		t.Fatal()
-	}
-	if items[3].Type != ltitCloseParenthesis ||
-		items[4].Type != ltitCloseParenthesis {
-		t.Fatal()
+	for k,_ := range items {
+		if items[k] != languageItems[k] {
+			t.Fatalf("Встретилась %d, ожидается %d, Лексема № %d",
+			items[k], languageItems[k], k)
+		}
 	}
 }
 
