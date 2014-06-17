@@ -1,7 +1,6 @@
 package lsa
 
 import (
-	"fmt"
 	"github.com/biorhitm/memfs"
 	"testing"
 	"unsafe"
@@ -16,10 +15,16 @@ func stringToLexems(S string) (PLexem, error) {
 }
 
 func TestTranslateArgument(t *testing.T) {
-	L, E := stringToLexems("((42))")
+	lexems, E := stringToLexems("((42))")
 	if E != nil {
 		t.Fatal(E.Error())
 	}
+	items := make([]TLanguageItem, 0)
+	E = (*lexems).translateArgument(&items)
+	if E != nil {
+		t.Fatal(E.Error())
+	}
+
 	languageItems := []TLanguageItem{
 		{ltitOpenParenthesis, 0},
 		{ltitOpenParenthesis, 0},
@@ -27,25 +32,15 @@ func TestTranslateArgument(t *testing.T) {
 		{ltitCloseParenthesis, 0},
 		{ltitCloseParenthesis, 0},
 	}
-	items, E := (*L).translateArgument()
+
 	if len(items) != len(languageItems) {
-		t.Fatal()
+		t.Fatalf("кол-во элементов языка: %d, должно быть: %d",
+			len(items), len(languageItems))
 	}
-	for k,_ := range items {
+	for k, _ := range items {
 		if items[k] != languageItems[k] {
-			t.Fatalf("Встретилась %d, ожидается %d, Лексема № %d",
-			items[k], languageItems[k], k)
+			t.Errorf("Встретилась %d, ожидается %d, Лексема № %d",
+				items[k], languageItems[k], k)
 		}
 	}
-}
-
-func ExampleTranslateAssignment() {
-	S := "Результат странной формулы=(1024/((2+2*2)-(17)+((34-5)+12)*(6+7)))"
-	L, E := stringToLexems(S)
-	if E != nil {
-		fmt.Print(E.Error())
-		return
-	}
-	(*L).translateAssignment()
-	//Output: Результат странной формулы = (1024 / ((2 + 2 * 2) - (17) + ((34 - 5) + 12) * (6 + 7)))
 }

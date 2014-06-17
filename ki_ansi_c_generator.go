@@ -15,6 +15,7 @@ const (
 	ltitOpenParenthesis
 	ltitCloseParenthesis
 	ltitNumber
+	ltitMathOperation //TODO: для каждой операции свой код
 )
 
 type TLanguageItem struct {
@@ -182,15 +183,14 @@ func (L *TLexem) errorAt(E *lsaError) error {
 ВЫЗОВ ФУНКЦИИ = <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '(' [<ПАРАМЕТРЫ>] ')'
 ПАРАМЕТРЫ = [<ВЫРАЖЕНИЕ>] {',' [<ВЫРАЖЕНИЕ>]}
 */
-func (L *TLexem) translateArgument() ([]TLanguageItem, error) {
-	var result = make([]TLanguageItem, 0, 4000)
+func (L *TLexem) translateArgument(AItems *[]TLanguageItem) error {
 	var item TLanguageItem
 
 	// пропускаю необязательные открывающие скобки
 	for L.Type == ltOpenParenthesis {
 		L = L.Next
 		item = TLanguageItem{Type: ltitOpenParenthesis}
-		result = append(result, item)
+		*AItems = append(*AItems, item)
 		parenthesis++
 	}
 
@@ -198,14 +198,14 @@ func (L *TLexem) translateArgument() ([]TLanguageItem, error) {
 	case ltNumber:
 		{
 			item = TLanguageItem{Type: ltitNumber, Index: uint(len(strNumbers))}
-			result = append(result, item)
+			*AItems = append(*AItems, item)
 			strNumbers = append(strNumbers, (*L).LexemAsString())
 			L = L.Next
 		}
 
 	default:
 		{
-			return nil, L.errorAt(EExpectedArgument)
+			return L.errorAt(EExpectedArgument)
 		}
 	}
 
@@ -213,52 +213,63 @@ func (L *TLexem) translateArgument() ([]TLanguageItem, error) {
 	for L.Type == ltCloseParenthesis {
 		L = L.Next
 		item = TLanguageItem{Type: ltitCloseParenthesis}
-		result = append(result, item)
+		*AItems = append(*AItems, item)
 		parenthesis--
 	}
-
-	return result, nil
+	return nil
 }
 
 /*
 BNF-определения для присваивания выражения переменной
 <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '=' <ВЫРАЖЕНИЕ>
 СЛОЖНЫЙ ИДЕНТИФИКАТОР = <ИДЕНТИФИКАТОР> {' ' <ИДЕНТИФИКАТОР>}
-ВЫРАЖЕНИЕ = [<LF>] <АРГУМЕНТ> [<LF>] {<ОПЕРАЦИЯ> [<LF>] <АРГУМЕНТ> [<LF>]}
+ВЫРАЖЕНИЕ = <АРГУМЕНТ> {<ОПЕРАЦИЯ> <АРГУМЕНТ>}
 ОПЕРАЦИЯ = '+' | '-' | '*' | '/' | '%' | '^'
 */
-func (L *TLexem) translateAssignment() (PLexem, error) {
+func (lexem *TLexem) translateAssignment(AItems *[]TLanguageItem) error {
+	var item TLanguageItem
 	var E error
 
-	for L.Type == ltIdent {
-		fmt.Printf("%s ", L.LexemAsString())
-		L = L.Next
+	if lexem.Type == ltIdent {
+		cnt := uint(len(strIdents))
+		strIdents = append(strIdents, lexem.LexemAsString())
+		lexem = lexem.Next
+
+		for lexem.Type == ltIdent {
+			strIdents[cnt] = strIdents[cnt] + " " + lexem.LexemAsString()
+			lexem = lexem.Next
+		}
+		item = TLanguageItem{Type: ltitIdent, Index: cnt}
+		*AItems = append(*AItems, item)
+	} else {
+		return lexem.errorAt(ESyntaxError)
 	}
 
-	if L.Type != ltEqualSign {
-		return nil, L.errorAt(ESyntaxError)
+	if lexem.Type == ltEqualSign {
+		item = TLanguageItem{Type: ltitAssignment}
+		*AItems = append(*AItems, item)
+		lexem = lexem.Next // пропускаю знак =
+	} else {
+		return lexem.errorAt(ESyntaxError)
 	}
 
-	fmt.Printf("= ")
-	L = L.Next // пропускаю знак =
-
-	if L.Type == ltEOF {
-		return nil, L.errorAt(EExpectedExpression)
+	if lexem.Type == ltEOF {
+		return lexem.errorAt(EExpectedExpression)
 	}
-	L = L.skipEOL()
+	lexem = lexem.skipEOL()
 
 	parenthesis = 0
 
 	// обрабатываю аргумент
-	//L, E = L.translateArgument()
+	E = lexem.translateArgument(AItems)
 	if E != nil {
-		return nil, E
+		return E
 	}
 
 	// далее может серия аргументов через знаки операций
 Loop:
 	for {
-		switch L.Type {
+		switch lexem.Type {
 		case ltSemicolon:
 			{
 				break Loop
@@ -268,13 +279,14 @@ Loop:
 		//      остальных операций: > < >= <= >> << ! ~
 		case ltPlus, ltMinus, ltStar, ltSlash, ltPercent:
 			{
-				fmt.Printf(" %c ", L.Type)
-				L = L.Next
-				/*				L, E = L.translateArgument()
-								if E != nil {
-									return nil, E
-								}
-				*/
+				item = TLanguageItem{Type: ltitMathOperation}
+				*AItems = append(*AItems, item)
+				lexem = lexem.Next
+
+				E = lexem.translateArgument(AItems)
+				if E != nil {
+					return E
+				}
 			}
 
 		default:
@@ -284,22 +296,21 @@ Loop:
 		}
 	}
 
-	fmt.Printf("\n")
-
 	if parenthesis < 0 {
-		return nil, L.errorAt(ETooMuchCloseRB)
+		return lexem.errorAt(ETooMuchCloseRB)
 	}
 	if parenthesis > 0 {
-		return nil, L.errorAt(ETooMuchOpenRB)
+		return lexem.errorAt(ETooMuchOpenRB)
 	}
 
-	return L, nil
+	return nil
 }
 
 /*
- Переводит текст в лексемах в код на языке С
+ Переводит текст в лексемах в массив элементов языка
 */
-func TranslateCode(ALexem PLexem) error {
+func TranslateCode(ALexem PLexem) ([]TLanguageItem, error) {
+	languageItems := make([]TLanguageItem, 5, 4000)
 	// лексема к которой надо будет вернуться, чтобы продолжить перевод
 	// например, если название переменной состоит из нескольких слов, то
 	// после нахождения знака =, надо будет вернуться к первому слову
@@ -323,16 +334,15 @@ func TranslateCode(ALexem PLexem) error {
 
 		case ltEqualSign:
 			{
-				nextLexem, E = (*startLexem).translateAssignment()
+				E = (*startLexem).translateAssignment(&languageItems)
 				if E != nil {
-					return E
+					return nil, E
 				}
 				ALexem = nextLexem
 			}
 
 		case ltEOL:
 			{
-				fmt.Println()
 				ALexem = ALexem.Next
 			}
 
@@ -346,5 +356,5 @@ func TranslateCode(ALexem PLexem) error {
 	}
 
 	fmt.Printf("----------EOF-----------\n")
-	return nil
+	return languageItems, nil
 }
