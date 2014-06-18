@@ -25,6 +25,14 @@ type TLanguageItem struct {
 	Index uint
 }
 
+type TSyntaxDescriptor struct {
+	Lexem         *TLexem
+	LanguageItems []TLanguageItem
+	Parenthesis   int
+	StrNumbers    []string //= make([]string, 0, 1024)
+	StrIdents     []string //make([]string, 0, 1024)
+}
+
 func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
 	for ALexem != nil {
 		if ALexem.Type == _type {
@@ -66,9 +74,6 @@ var (
 	ETooMuchCloseRB     = &lsaError{Msg: "Слишком много )"}
 	ETooMuchOpenRB      = &lsaError{Msg: "Слишком много ("}
 )
-
-var strNumbers = make([]string, 0, 1024)
-var strIdents = make([]string, 0, 1024)
 
 func (self *TLexem) toKeywordId() int {
 	S := (*self).LexemAsString()
@@ -168,8 +173,6 @@ func (self *TLexem) skipEOL() PLexem {
 	return self
 }
 
-var parenthesis int = 0
-
 func (L *TLexem) errorAt(E *lsaError) error {
 	E.LineNo = L.LineNo
 	E.ColumnNo = L.ColumnNo
@@ -183,38 +186,41 @@ func (L *TLexem) errorAt(E *lsaError) error {
 ВЫЗОВ ФУНКЦИИ = <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '(' [<ПАРАМЕТРЫ>] ')'
 ПАРАМЕТРЫ = [<ВЫРАЖЕНИЕ>] {',' [<ВЫРАЖЕНИЕ>]}
 */
-func (L *TLexem) translateArgument(AItems *[]TLanguageItem) error {
+func (Self *TSyntaxDescriptor) translateArgument() error {
 	var item TLanguageItem
+	var S string
 
 	// пропускаю необязательные открывающие скобки
-	for L.Type == ltOpenParenthesis {
-		L = L.Next
+	for Self.Lexem.Type == ltOpenParenthesis {
+		Self.Lexem = Self.Lexem.Next
 		item = TLanguageItem{Type: ltitOpenParenthesis}
-		*AItems = append(*AItems, item)
-		parenthesis++
+		Self.LanguageItems = append(Self.LanguageItems, item)
+		Self.Parenthesis++
 	}
 
-	switch L.Type {
+	switch Self.Lexem.Type {
 	case ltNumber:
 		{
-			item = TLanguageItem{Type: ltitNumber, Index: uint(len(strNumbers))}
-			*AItems = append(*AItems, item)
-			strNumbers = append(strNumbers, (*L).LexemAsString())
-			L = L.Next
+			item = TLanguageItem{Type: ltitNumber,
+				Index: uint(len(Self.StrNumbers))}
+			Self.LanguageItems = append(Self.LanguageItems, item)
+			S = Self.Lexem.LexemAsString()
+			Self.StrNumbers = append(Self.StrNumbers, S)
+			Self.Lexem = Self.Lexem.Next
 		}
 
 	default:
 		{
-			return L.errorAt(EExpectedArgument)
+			return Self.Lexem.errorAt(EExpectedArgument)
 		}
 	}
 
 	// пропускаю необязательные закрывающие скобки
-	for L.Type == ltCloseParenthesis {
-		L = L.Next
+	for Self.Lexem.Type == ltCloseParenthesis {
+		Self.Lexem = Self.Lexem.Next
 		item = TLanguageItem{Type: ltitCloseParenthesis}
-		*AItems = append(*AItems, item)
-		parenthesis--
+		Self.LanguageItems = append(Self.LanguageItems, item)
+		Self.Parenthesis--
 	}
 	return nil
 }
@@ -226,42 +232,43 @@ BNF-определения для присваивания выражения п
 ВЫРАЖЕНИЕ = <АРГУМЕНТ> {<ОПЕРАЦИЯ> <АРГУМЕНТ>}
 ОПЕРАЦИЯ = '+' | '-' | '*' | '/' | '%' | '^'
 */
-func (lexem *TLexem) translateAssignment(AItems *[]TLanguageItem) error {
+func (Self *TSyntaxDescriptor) translateAssignment() error {
 	var item TLanguageItem
 	var E error
 
-	if lexem.Type == ltIdent {
-		cnt := uint(len(strIdents))
-		strIdents = append(strIdents, lexem.LexemAsString())
-		lexem = lexem.Next
+	if Self.Lexem.Type == ltIdent {
+		cnt := uint(len(Self.StrIdents))
+		Self.StrIdents = append(Self.StrIdents, Self.Lexem.LexemAsString())
+		Self.Lexem = Self.Lexem.Next
 
-		for lexem.Type == ltIdent {
-			strIdents[cnt] = strIdents[cnt] + " " + lexem.LexemAsString()
-			lexem = lexem.Next
+		for Self.Lexem.Type == ltIdent {
+			Self.StrIdents[cnt] = fmt.Sprintf("%s %s", Self.StrIdents[cnt],
+				Self.Lexem.LexemAsString())
+			Self.Lexem = Self.Lexem.Next
 		}
 		item = TLanguageItem{Type: ltitIdent, Index: cnt}
-		*AItems = append(*AItems, item)
+		Self.LanguageItems = append(Self.LanguageItems, item)
 	} else {
-		return lexem.errorAt(ESyntaxError)
+		return Self.Lexem.errorAt(ESyntaxError)
 	}
 
-	if lexem.Type == ltEqualSign {
+	if Self.Lexem.Type == ltEqualSign {
 		item = TLanguageItem{Type: ltitAssignment}
-		*AItems = append(*AItems, item)
-		lexem = lexem.Next // пропускаю знак =
+		Self.LanguageItems = append(Self.LanguageItems, item)
+		Self.Lexem = Self.Lexem.Next // пропускаю знак =
 	} else {
-		return lexem.errorAt(ESyntaxError)
+		return Self.Lexem.errorAt(ESyntaxError)
 	}
 
-	if lexem.Type == ltEOF {
-		return lexem.errorAt(EExpectedExpression)
+	if Self.Lexem.Type == ltEOF {
+		return Self.Lexem.errorAt(EExpectedExpression)
 	}
-	lexem = lexem.skipEOL()
+	Self.Lexem = Self.Lexem.skipEOL()
 
-	parenthesis = 0
+	Self.Parenthesis = 0
 
 	// обрабатываю аргумент
-	E = lexem.translateArgument(AItems)
+	E = Self.translateArgument()
 	if E != nil {
 		return E
 	}
@@ -269,7 +276,7 @@ func (lexem *TLexem) translateAssignment(AItems *[]TLanguageItem) error {
 	// далее может серия аргументов через знаки операций
 Loop:
 	for {
-		switch lexem.Type {
+		switch Self.Lexem.Type {
 		case ltSemicolon:
 			{
 				break Loop
@@ -280,10 +287,10 @@ Loop:
 		case ltPlus, ltMinus, ltStar, ltSlash, ltPercent:
 			{
 				item = TLanguageItem{Type: ltitMathOperation}
-				*AItems = append(*AItems, item)
-				lexem = lexem.Next
+				Self.LanguageItems = append(Self.LanguageItems, item)
+				Self.Lexem = Self.Lexem.Next
 
-				E = lexem.translateArgument(AItems)
+				E = Self.translateArgument()
 				if E != nil {
 					return E
 				}
@@ -296,11 +303,11 @@ Loop:
 		}
 	}
 
-	if parenthesis < 0 {
-		return lexem.errorAt(ETooMuchCloseRB)
+	if Self.Parenthesis < 0 {
+		return Self.Lexem.errorAt(ETooMuchCloseRB)
 	}
-	if parenthesis > 0 {
-		return lexem.errorAt(ETooMuchOpenRB)
+	if Self.Parenthesis > 0 {
+		return Self.Lexem.errorAt(ETooMuchOpenRB)
 	}
 
 	return nil
@@ -309,8 +316,15 @@ Loop:
 /*
  Переводит текст в лексемах в массив элементов языка
 */
-func TranslateCode(ALexem PLexem) ([]TLanguageItem, error) {
-	languageItems := make([]TLanguageItem, 5, 4000)
+func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
+	syntaxDescriptor := TSyntaxDescriptor{
+		Lexem:         ALexem,
+		LanguageItems: make([]TLanguageItem, 0, 1000),
+		Parenthesis:   0,
+		StrNumbers:    make([]string, 0, 1024),
+		StrIdents:     make([]string, 0, 1024),
+	}
+
 	// лексема к которой надо будет вернуться, чтобы продолжить перевод
 	// например, если название переменной состоит из нескольких слов, то
 	// после нахождения знака =, надо будет вернуться к первому слову
@@ -334,9 +348,10 @@ func TranslateCode(ALexem PLexem) ([]TLanguageItem, error) {
 
 		case ltEqualSign:
 			{
-				E = (*startLexem).translateAssignment(&languageItems)
+				syntaxDescriptor.Lexem = startLexem
+				E = syntaxDescriptor.translateAssignment()
 				if E != nil {
-					return nil, E
+					return TSyntaxDescriptor{}, E
 				}
 				ALexem = nextLexem
 			}
@@ -356,5 +371,5 @@ func TranslateCode(ALexem PLexem) ([]TLanguageItem, error) {
 	}
 
 	fmt.Printf("----------EOF-----------\n")
-	return languageItems, nil
+	return syntaxDescriptor, nil
 }

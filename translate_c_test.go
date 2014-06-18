@@ -15,12 +15,15 @@ func stringToLexems(S string) (PLexem, error) {
 }
 
 func TestTranslateArgument(t *testing.T) {
-	lexems, E := stringToLexems("((42))")
+	var SD TSyntaxDescriptor
+	var E error
+
+	SD.Lexem, E = stringToLexems("((42))")
 	if E != nil {
 		t.Fatal(E.Error())
 	}
-	items := make([]TLanguageItem, 0)
-	E = (*lexems).translateArgument(&items)
+
+	E = SD.translateArgument()
 	if E != nil {
 		t.Fatal(E.Error())
 	}
@@ -33,14 +36,14 @@ func TestTranslateArgument(t *testing.T) {
 		{ltitCloseParenthesis, 0},
 	}
 
-	if len(items) != len(languageItems) {
+	if len(SD.LanguageItems) != len(languageItems) {
 		t.Fatalf("кол-во элементов языка: %d, должно быть: %d",
-			len(items), len(languageItems))
+			len(SD.LanguageItems), len(languageItems))
 	}
-	for k, _ := range items {
-		if items[k] != languageItems[k] {
+	for k, _ := range SD.LanguageItems {
+		if SD.LanguageItems[k] != languageItems[k] {
 			t.Errorf("Встретилась %d, ожидается %d, Лексема № %d",
-				items[k], languageItems[k], k)
+				SD.LanguageItems[k], languageItems[k], k)
 		}
 	}
 }
