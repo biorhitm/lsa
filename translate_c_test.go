@@ -88,3 +88,25 @@ func TestTranslateArgument(t *testing.T) {
 		t.Fatal(S)
 	}
 }
+
+func TestTranslateAssigment(t *testing.T) {
+	var SD TSyntaxDescriptor
+	var E error
+
+	if SD.Lexem, E = stringToLexems("Важное число = 42"); E != nil {
+		t.Fatal(E.Error())
+	}
+
+	if E = SD.translateAssignment(); E != nil {
+		t.Fatal(E.Error())
+	}
+
+	languageItems := []tLanguageItem{
+		{ltitIdent, "Важное число"}, {ltitAssignment, ""},
+		{ltitNumber, "42"},
+	}
+
+	if S, ok := compareLanguageItems(SD, languageItems); !ok {
+		t.Fatal(S)
+	}
+}
