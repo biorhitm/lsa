@@ -34,8 +34,9 @@ func compareLanguageItems(SD TSyntaxDescriptor,
 	for itemNo, _ := range SD.LanguageItems {
 		T := SD.LanguageItems[itemNo].Type
 		if T != AStandardItems[itemNo].Type {
-			return fmt.Sprintf("Встретилась %d, ожидается %d, Лексема № %d",
-				SD.LanguageItems[itemNo], AStandardItems[itemNo], itemNo), false
+			return fmt.Sprintf("Тип элемента: %d, ожидается %d, Лексема № %d",
+				SD.LanguageItems[itemNo].Type,
+				AStandardItems[itemNo].Type, itemNo), false
 		}
 
 		idx := SD.LanguageItems[itemNo].Index
