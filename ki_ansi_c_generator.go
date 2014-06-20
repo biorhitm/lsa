@@ -209,6 +209,17 @@ func (Self *TSyntaxDescriptor) translateArgument() error {
 			Self.Lexem = Self.Lexem.Next
 		}
 
+	case ltIdent:
+		{
+			//TODO: разпознание аргументов из нескольких слов
+			item = TLanguageItem{Type: ltitIdent,
+				Index: uint(len(Self.StrIdents))}
+			Self.LanguageItems = append(Self.LanguageItems, item)
+			S = Self.Lexem.LexemAsString()
+			Self.StrIdents = append(Self.StrIdents, S)
+			Self.Lexem = Self.Lexem.Next
+		}
+
 	default:
 		{
 			return Self.Lexem.errorAt(EExpectedArgument)
