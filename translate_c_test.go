@@ -119,11 +119,9 @@ func TestTranslateAssigment(t *testing.T) {
 		t.Fatal(S)
 	}
 
-	//TODO: Разпознание идентификаторов на английском
 	//TODO: Разпознание цифр с точкой
-	//TODO: Init для TSyntaxDescriptor
 	//**************************************************************************
-	S = "Длина окружности = Диаметр окружности * ПИ * 3.14"
+	S = "Длина окружности = Diameter of the circle * PI * 3.14"
 	//**************************************************************************
 	SD.Init()
 	if SD.Lexem, E = stringToLexems(S); E != nil {
@@ -137,9 +135,9 @@ func TestTranslateAssigment(t *testing.T) {
 	S, ok = compareLanguageItems(SD, []tLanguageItem{
 		{ltitIdent, "Длина окружности"},
 		{ltitAssignment, ""},
-		{ltitIdent, "Диаметр окружности"},
+		{ltitIdent, "Diameter of the circle"},
 		{ltitMathOperation, ""},
-		{ltitIdent, "ПИ"},
+		{ltitIdent, "PI"},
 		{ltitMathOperation, ""},
 		{ltitNumber, "3"},
 	})

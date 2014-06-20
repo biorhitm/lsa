@@ -106,7 +106,8 @@ func (self *TLexem) LexemAsString() string {
 }
 
 func isLetter(C rune) bool {
-	return (0x0410 <= C && C <= 0x044F) || C == 0x0401 || C == 0x0451
+	return (0x0410 <= C && C <= 0x044F) || C == 0x0401 || C == 0x0451 ||
+		('A' <= C && C <= 'Z') || ('a' <= C && C <= 'z')
 }
 
 func isIdentLetter(C rune) bool {
