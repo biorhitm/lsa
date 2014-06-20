@@ -123,7 +123,7 @@ func TestTranslateAssigment(t *testing.T) {
 	//TODO: Разпознание цифр с точкой
 	//TODO: Init для TSyntaxDescriptor
 	//**************************************************************************
-	S = "Длина окружности = Диаметр * ПИ * 3.14"
+	S = "Длина окружности = Диаметр окружности * ПИ * 3.14"
 	//**************************************************************************
 	SD.LanguageItems = make([]TLanguageItem, 0, 0)
 	SD.StrIdents = make([]string, 0, 0)
@@ -139,7 +139,7 @@ func TestTranslateAssigment(t *testing.T) {
 	S, ok = compareLanguageItems(SD, []tLanguageItem{
 		{ltitIdent, "Длина окружности"},
 		{ltitAssignment, ""},
-		{ltitIdent, "Диаметр"},
+		{ltitIdent, "Диаметр окружности"},
 		{ltitMathOperation, ""},
 		{ltitIdent, "ПИ"},
 		{ltitMathOperation, ""},

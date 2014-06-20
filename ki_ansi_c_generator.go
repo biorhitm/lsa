@@ -179,6 +179,24 @@ func (L *TLexem) errorAt(E *lsaError) error {
 	return E
 }
 
+func (Self *TSyntaxDescriptor) translateComplexIdent() error {
+	if Self.Lexem.Type != ltIdent {
+		return Self.Lexem.errorAt(&lsaError{Msg: "Can't translateComplexIdent, type not ltIdent."})
+	}
+
+	cnt := uint(len(Self.StrIdents))
+	Self.StrIdents = append(Self.StrIdents, Self.Lexem.LexemAsString())
+	Self.Lexem = Self.Lexem.Next
+
+	for Self.Lexem.Type == ltIdent {
+		Self.StrIdents[cnt] += " " + Self.Lexem.LexemAsString()
+		Self.Lexem = Self.Lexem.Next
+	}
+	item := TLanguageItem{Type: ltitIdent, Index: cnt}
+	Self.LanguageItems = append(Self.LanguageItems, item)
+	return nil
+}
+
 /*
 АРГУМЕНТ = {'('} <ПРОСТОЙ АРГУМЕНТ> {')'}
 ПРОСТОЙ АРГУМЕНТ = <ЧИСЛО> | <СЛОЖНЫЙ ИДЕНТИФИКАТОР> | <ВЫЗОВ ФУНКЦИИ>
@@ -211,13 +229,10 @@ func (Self *TSyntaxDescriptor) translateArgument() error {
 
 	case ltIdent:
 		{
-			//TODO: разпознание аргументов из нескольких слов
-			item = TLanguageItem{Type: ltitIdent,
-				Index: uint(len(Self.StrIdents))}
-			Self.LanguageItems = append(Self.LanguageItems, item)
-			S = Self.Lexem.LexemAsString()
-			Self.StrIdents = append(Self.StrIdents, S)
-			Self.Lexem = Self.Lexem.Next
+			E := Self.translateComplexIdent()
+			if E != nil {
+				return Self.Lexem.errorAt(ESyntaxError)
+			}
 		}
 
 	default:
@@ -247,19 +262,8 @@ func (Self *TSyntaxDescriptor) translateAssignment() error {
 	var item TLanguageItem
 	var E error
 
-	if Self.Lexem.Type == ltIdent {
-		cnt := uint(len(Self.StrIdents))
-		Self.StrIdents = append(Self.StrIdents, Self.Lexem.LexemAsString())
-		Self.Lexem = Self.Lexem.Next
-
-		for Self.Lexem.Type == ltIdent {
-			Self.StrIdents[cnt] = fmt.Sprintf("%s %s", Self.StrIdents[cnt],
-				Self.Lexem.LexemAsString())
-			Self.Lexem = Self.Lexem.Next
-		}
-		item = TLanguageItem{Type: ltitIdent, Index: cnt}
-		Self.LanguageItems = append(Self.LanguageItems, item)
-	} else {
+	E = Self.translateComplexIdent()
+	if E != nil {
 		return Self.Lexem.errorAt(ESyntaxError)
 	}
 
