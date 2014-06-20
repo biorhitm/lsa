@@ -75,6 +75,14 @@ var (
 	ETooMuchOpenRB      = &lsaError{Msg: "Слишком много ("}
 )
 
+func (self *TSyntaxDescriptor) Init() {
+	self.Lexem = nil
+	self.Parenthesis = 0
+	self.LanguageItems = make([]TLanguageItem, 0, 0)
+	self.StrIdents = make([]string, 0, 0)
+	self.StrNumbers = make([]string, 0, 0)
+}
+
 func (self *TLexem) toKeywordId() int {
 	S := (*self).LexemAsString()
 	for i := 0; i < len(keywordList); i++ {

@@ -125,9 +125,7 @@ func TestTranslateAssigment(t *testing.T) {
 	//**************************************************************************
 	S = "Длина окружности = Диаметр окружности * ПИ * 3.14"
 	//**************************************************************************
-	SD.LanguageItems = make([]TLanguageItem, 0, 0)
-	SD.StrIdents = make([]string, 0, 0)
-	SD.StrNumbers = make([]string, 0, 0)
+	SD.Init()
 	if SD.Lexem, E = stringToLexems(S); E != nil {
 		t.Fatal(E.Error())
 	}
