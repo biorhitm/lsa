@@ -106,7 +106,8 @@ func (self *TLexem) LexemAsString() string {
 }
 
 func isLetter(C rune) bool {
-	return (0x0410 <= C && C <= 0x044F) || C == 0x0401 || C == 0x0451
+	return (0x0410 <= C && C <= 0x044F) || C == 0x0401 || C == 0x0451 ||
+		('A' <= C && C <= 'Z') || ('a' <= C && C <= 'z')
 }
 
 func isIdentLetter(C rune) bool {
@@ -134,6 +135,7 @@ func isSymbol(C rune) bool {
 
 var InvalidRune = errors.New("Invalid utf8 char, support russian only")
 
+//TODO: сделать peekRune
 func (R *TReader) readRune() (aChar rune, E error) {
 
 	if R.NextIndex > R.Index {
@@ -221,6 +223,61 @@ func (R *TReader) unread() {
 	R.NextIndex = R.Index
 }
 
+func (self *TReader) extractNumber(ALexem *TLexem) error {
+	//TODO: проверка первого символа
+	//TODO: анализ чисел 16-ричных(0x...)
+	//TODO: анализ чисел 2-ичных(0b...)
+	//TODO: анализ чисел 8-ричных(0...)
+	//TODO: анализ чисел c E(314E-2, 3e+3)
+
+	var C rune
+	var err error
+	startIndex := self.Index
+	ALexem.Text = memfs.PBigByteArray(unsafe.Pointer(&self.Text[startIndex]))
+
+	for {
+		C, err = self.readRune()
+		if err == nil {
+			if !isDigit(C) {
+				break
+			}
+		} else {
+			if err == io.EOF {
+				ALexem.Size = uint(self.Index - startIndex)
+				break
+			}
+			return err
+		}
+	}
+
+	if C == '.' {
+		//пока просто пропускаю
+	} else {
+		self.unread()
+		ALexem.Size = uint(self.Index - startIndex)
+		return nil
+	}
+
+	for {
+		C, err = self.readRune()
+		if err == nil {
+			if !isDigit(C) {
+				self.unread()
+				break
+			}
+		} else {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+	}
+
+	ALexem.Size = uint(self.Index - startIndex)
+
+	return nil
+}
+
 func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) (PLexem, error) {
 	var startIndex uint64 = 0
 
@@ -256,22 +313,12 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) (PLexem, error
 
 	case ltNumber:
 		{
-			startIndex = R.Index
-			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
-			for {
-				C, err := R.readRune()
-				if err != nil {
-					if err == io.EOF {
-						L.Size = uint(R.Index - startIndex)
-						break
-					}
-					return nil, err
-				}
-				if !isDigit(C) {
-					R.unread()
-					L.Size = uint(R.Index - startIndex)
+			err := R.extractNumber(L)
+			if err != nil {
+				if err == io.EOF {
 					break
 				}
+				return nil, err
 			}
 		}
 

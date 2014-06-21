@@ -53,6 +53,11 @@ func compareLanguageItems(SD TSyntaxDescriptor,
 				S = SD.StrNumbers[idx]
 			}
 
+		case ltitString:
+			{
+				S = SD.StrStrings[idx]
+			}
+
 		default:
 			S = ""
 		}
@@ -119,15 +124,10 @@ func TestTranslateAssigment(t *testing.T) {
 		t.Fatal(S)
 	}
 
-	//TODO: Разпознание идентификаторов на английском
-	//TODO: Разпознание цифр с точкой
-	//TODO: Init для TSyntaxDescriptor
 	//**************************************************************************
-	S = "Длина окружности = Диаметр * ПИ * 3.14"
+	S = "Длина окружности = Diameter of the circle * PI * 3.14"
 	//**************************************************************************
-	SD.LanguageItems = make([]TLanguageItem, 0, 0)
-	SD.StrIdents = make([]string, 0, 0)
-	SD.StrNumbers = make([]string, 0, 0)
+	SD.Init()
 	if SD.Lexem, E = stringToLexems(S); E != nil {
 		t.Fatal(E.Error())
 	}
@@ -139,15 +139,37 @@ func TestTranslateAssigment(t *testing.T) {
 	S, ok = compareLanguageItems(SD, []tLanguageItem{
 		{ltitIdent, "Длина окружности"},
 		{ltitAssignment, ""},
-		{ltitIdent, "Диаметр"},
+		{ltitIdent, "Diameter of the circle"},
 		{ltitMathOperation, ""},
-		{ltitIdent, "ПИ"},
+		{ltitIdent, "PI"},
 		{ltitMathOperation, ""},
-		{ltitNumber, "3"},
+		{ltitNumber, "3.14"},
 	})
 
 	if !ok {
 		t.Fatal(S)
 	}
 
+	//**************************************************************************
+	S = "Текст = \"Привет\" + \" \" + \"мир!\""
+	//**************************************************************************
+	SD.Init()
+	if SD.Lexem, E = stringToLexems(S); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E = SD.translateAssignment(); E != nil {
+		t.Fatal(E.Error())
+	}
+	S, ok = compareLanguageItems(SD, []tLanguageItem{
+		{ltitIdent, "Текст"},
+		{ltitAssignment, ""},
+		{ltitString, "Привет"},
+		{ltitMathOperation, ""},
+		{ltitString, " "},
+		{ltitMathOperation, ""},
+		{ltitString, "мир!"},
+	})
+	if !ok {
+		t.Fatal(S)
+	}
 }
