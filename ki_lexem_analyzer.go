@@ -135,6 +135,7 @@ func isSymbol(C rune) bool {
 
 var InvalidRune = errors.New("Invalid utf8 char, support russian only")
 
+//TODO: сделать peekRune
 func (R *TReader) readRune() (aChar rune, E error) {
 
 	if R.NextIndex > R.Index {
@@ -222,6 +223,28 @@ func (R *TReader) unread() {
 	R.NextIndex = R.Index
 }
 
+func (self *TReader) extractNumber(ALexem *TLexem) error {
+	//TODO: сделать проверку первого символа
+	startIndex := self.Index
+	ALexem.Text = memfs.PBigByteArray(unsafe.Pointer(&self.Text[startIndex]))
+	for {
+		C, err := self.readRune()
+		if err != nil {
+			if err == io.EOF {
+				ALexem.Size = uint(self.Index - startIndex)
+				break
+			}
+			return err
+		}
+		if !isDigit(C) {
+			self.unread()
+			ALexem.Size = uint(self.Index - startIndex)
+			break
+		}
+	}
+	return nil
+}
+
 func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) (PLexem, error) {
 	var startIndex uint64 = 0
 
@@ -257,22 +280,12 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) (PLexem, error
 
 	case ltNumber:
 		{
-			startIndex = R.Index
-			L.Text = memfs.PBigByteArray(unsafe.Pointer(&R.Text[startIndex]))
-			for {
-				C, err := R.readRune()
-				if err != nil {
-					if err == io.EOF {
-						L.Size = uint(R.Index - startIndex)
-						break
-					}
-					return nil, err
-				}
-				if !isDigit(C) {
-					R.unread()
-					L.Size = uint(R.Index - startIndex)
+			err := R.extractNumber(L)
+			if err != nil {
+				if err == io.EOF {
 					break
 				}
+				return nil, err
 			}
 		}
 
