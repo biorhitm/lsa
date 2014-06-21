@@ -53,6 +53,11 @@ func compareLanguageItems(SD TSyntaxDescriptor,
 				S = SD.StrNumbers[idx]
 			}
 
+		case ltitString:
+			{
+				S = SD.StrStrings[idx]
+			}
+
 		default:
 			S = ""
 		}
@@ -145,4 +150,26 @@ func TestTranslateAssigment(t *testing.T) {
 		t.Fatal(S)
 	}
 
+	//**************************************************************************
+	S = "Текст = \"Привет\" + \" \" + \"мир!\""
+	//**************************************************************************
+	SD.Init()
+	if SD.Lexem, E = stringToLexems(S); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E = SD.translateAssignment(); E != nil {
+		t.Fatal(E.Error())
+	}
+	S, ok = compareLanguageItems(SD, []tLanguageItem{
+		{ltitIdent, "Текст"},
+		{ltitAssignment, ""},
+		{ltitString, "Привет"},
+		{ltitMathOperation, ""},
+		{ltitString, " "},
+		{ltitMathOperation, ""},
+		{ltitString, "мир!"},
+	})
+	if !ok {
+		t.Fatal(S)
+	}
 }

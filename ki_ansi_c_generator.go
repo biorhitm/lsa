@@ -16,6 +16,7 @@ const (
 	ltitCloseParenthesis
 	ltitNumber
 	ltitMathOperation //TODO: для каждой операции свой код
+	ltitString
 )
 
 type TLanguageItem struct {
@@ -31,6 +32,7 @@ type TSyntaxDescriptor struct {
 	Parenthesis   int
 	StrNumbers    []string //= make([]string, 0, 1024)
 	StrIdents     []string //make([]string, 0, 1024)
+	StrStrings    []string
 }
 
 func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
@@ -187,6 +189,7 @@ func (L *TLexem) errorAt(E *lsaError) error {
 	return E
 }
 
+//TODO: не создавать одинаковые идентификаторы в Self.StrIdents
 func (Self *TSyntaxDescriptor) translateComplexIdent() error {
 	if Self.Lexem.Type != ltIdent {
 		return Self.Lexem.errorAt(&lsaError{Msg: "Can't translateComplexIdent, type not ltIdent."})
@@ -202,6 +205,34 @@ func (Self *TSyntaxDescriptor) translateComplexIdent() error {
 	}
 	item := TLanguageItem{Type: ltitIdent, Index: cnt}
 	Self.LanguageItems = append(Self.LanguageItems, item)
+	return nil
+}
+
+func (self *TSyntaxDescriptor) translateString() error {
+	if self.Lexem.Type != ltString {
+		return self.Lexem.errorAt(&lsaError{
+			Msg: "Can't translateString, type not ltString."})
+	}
+
+	S := self.Lexem.LexemAsString()
+	self.Lexem = self.Lexem.Next
+
+	L := uint(len(self.StrStrings))
+	index := L
+	for k, v := range self.StrStrings {
+		if v == S {
+			index = uint(k)
+			break
+		}
+	}
+	if index == L {
+		self.StrStrings = append(self.StrStrings, S)
+	} else {
+		self.StrStrings[index] = S
+	}
+	item := TLanguageItem{Type: ltitString, Index: index}
+	self.LanguageItems = append(self.LanguageItems, item)
+
 	return nil
 }
 
@@ -240,8 +271,14 @@ func (Self *TSyntaxDescriptor) translateArgument() error {
 
 	case ltIdent:
 		{
-			E := Self.translateComplexIdent()
-			if E != nil {
+			if E := Self.translateComplexIdent(); E != nil {
+				return Self.Lexem.errorAt(ESyntaxError)
+			}
+		}
+
+	case ltString:
+		{
+			if E := Self.translateString(); E != nil {
 				return Self.Lexem.errorAt(ESyntaxError)
 			}
 		}
