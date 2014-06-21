@@ -119,7 +119,6 @@ func TestTranslateAssigment(t *testing.T) {
 		t.Fatal(S)
 	}
 
-	//TODO: Разпознание цифр с точкой
 	//**************************************************************************
 	S = "Длина окружности = Diameter of the circle * PI * 3.14"
 	//**************************************************************************
@@ -139,7 +138,7 @@ func TestTranslateAssigment(t *testing.T) {
 		{ltitMathOperation, ""},
 		{ltitIdent, "PI"},
 		{ltitMathOperation, ""},
-		{ltitNumber, "3"},
+		{ltitNumber, "3.14"},
 	})
 
 	if !ok {

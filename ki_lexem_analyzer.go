@@ -224,24 +224,57 @@ func (R *TReader) unread() {
 }
 
 func (self *TReader) extractNumber(ALexem *TLexem) error {
-	//TODO: сделать проверку первого символа
+	//TODO: проверка первого символа
+	//TODO: анализ чисел 16-ричных(0x...)
+	//TODO: анализ чисел 2-ичных(0b...)
+	//TODO: анализ чисел 8-ричных(0...)
+	//TODO: анализ чисел c E(314E-2, 3e+3)
+
+	var C rune
+	var err error
 	startIndex := self.Index
 	ALexem.Text = memfs.PBigByteArray(unsafe.Pointer(&self.Text[startIndex]))
+
 	for {
-		C, err := self.readRune()
-		if err != nil {
+		C, err = self.readRune()
+		if err == nil {
+			if !isDigit(C) {
+				break
+			}
+		} else {
 			if err == io.EOF {
 				ALexem.Size = uint(self.Index - startIndex)
 				break
 			}
 			return err
 		}
-		if !isDigit(C) {
-			self.unread()
-			ALexem.Size = uint(self.Index - startIndex)
-			break
+	}
+
+	if C == '.' {
+		//пока просто пропускаю
+	} else {
+		self.unread()
+		ALexem.Size = uint(self.Index - startIndex)
+		return nil
+	}
+
+	for {
+		C, err = self.readRune()
+		if err == nil {
+			if !isDigit(C) {
+				self.unread()
+				break
+			}
+		} else {
+			if err == io.EOF {
+				break
+			}
+			return err
 		}
 	}
+
+	ALexem.Size = uint(self.Index - startIndex)
+
 	return nil
 }
 
