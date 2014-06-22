@@ -15,8 +15,18 @@ const (
 	ltitOpenParenthesis
 	ltitCloseParenthesis
 	ltitNumber
-	ltitMathOperation //TODO: для каждой операции свой код
 	ltitString
+	ltitChar
+	ltitMathAdd
+	ltitMathSub
+	ltitMathMul
+	ltitMathDiv
+	ltitModulo
+	ltitInvolution
+	ltitOR
+	ltitAND
+	ltitXOR
+	ltitNOT
 )
 
 type TLanguageItem struct {
@@ -193,20 +203,20 @@ func (L *TLexem) errorAt(E *lsaError) error {
 }
 
 func (list *TStringArray) addUnique(S string) uint {
-	for i, v := range (*list) {
+	for i, v := range *list {
 		if v == S {
 			return uint(i)
 		}
 	}
 	(*list) = append((*list), S)
-	return uint(len(*list)-1)
+	return uint(len(*list) - 1)
 }
 
 func (self *TSyntaxDescriptor) translateNumber() error {
 	S := self.Lexem.LexemAsString()
 	index := self.StrNumbers.addUnique(S)
 
-	item := TLanguageItem{Type: ltitNumber,	Index: index}
+	item := TLanguageItem{Type: ltitNumber, Index: index}
 	self.LanguageItems = append(self.LanguageItems, item)
 
 	self.Lexem = self.Lexem.Next
@@ -248,7 +258,6 @@ func (self *TSyntaxDescriptor) translateString() error {
 }
 
 //TODO: распознание символа как аргумента
-//TODO: распознание строки как аргумента
 //TODO: распознание вызова функции как аргумента
 /*
 АРГУМЕНТ = {'('} <ПРОСТОЙ АРГУМЕНТ> {')'}
@@ -310,12 +319,37 @@ func (Self *TSyntaxDescriptor) translateArgument() error {
 	return nil
 }
 
+func (self *TSyntaxDescriptor) translateOperation() error {
+	var lit TLanguageItemType
+	switch self.Lexem.Type {
+	case ltStar:
+		lit = ltitMathMul
+
+	case ltPlus:
+		lit = ltitMathAdd
+
+	case ltMinus:
+		lit = ltitMathSub
+
+	case ltSlash:
+		lit = ltitMathDiv
+	}
+
+	item := TLanguageItem{Type: lit}
+	self.LanguageItems = append(self.LanguageItems, item)
+	self.Lexem = self.Lexem.Next
+	return nil
+
+}
+
 /*
 BNF-определения для присваивания выражения переменной
 <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '=' <ВЫРАЖЕНИЕ>
 СЛОЖНЫЙ ИДЕНТИФИКАТОР = <ИДЕНТИФИКАТОР> {' ' <ИДЕНТИФИКАТОР>}
 ВЫРАЖЕНИЕ = <АРГУМЕНТ> {<ОПЕРАЦИЯ> <АРГУМЕНТ>}
+СЛОЖНЫЙ АРГУМЕНТ = [<УНАРНАЯ ОПЕРАЦИЯ>] <АРГУМЕНТ>
 ОПЕРАЦИЯ = '+' | '-' | '*' | '/' | '%' | '^'
+УНАРНАЯ ОПЕРАЦИЯ = '!'
 */
 func (Self *TSyntaxDescriptor) translateAssignment() error {
 	var item TLanguageItem
@@ -360,9 +394,10 @@ Loop:
 		//      остальных операций: > < >= <= >> << ! ~
 		case ltPlus, ltMinus, ltStar, ltSlash, ltPercent:
 			{
-				item = TLanguageItem{Type: ltitMathOperation}
-				Self.LanguageItems = append(Self.LanguageItems, item)
-				Self.Lexem = Self.Lexem.Next
+				E = Self.translateOperation()
+				if E != nil {
+					return E
+				}
 
 				E = Self.translateArgument()
 				if E != nil {
