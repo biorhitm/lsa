@@ -194,3 +194,37 @@ func Test_addUnique(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestTranslateFunctionDeclaration(t *testing.T) {
+	var (
+		SD TSyntaxDescriptor
+		E  error
+		S  string
+		ok bool
+	)
+
+	//**************************************************************************
+	S = "функция Сравнить элементы массива(Массив): Логический"
+	//**************************************************************************
+	if SD.Lexem, E = stringToLexems(S); E != nil {
+		t.Fatal(E.Error())
+	}
+
+	if E = SD.translateFunctionDeclaration(); E != nil {
+		t.Fatal(E.Error())
+	}
+
+	S, ok = compareLanguageItems(SD, []tLanguageItem{
+		{ltitFunctionDeclaration, ""},
+		{ltitIdent, "Сравнить элементы массива"},
+		{ltitOpenParenthesis, ""},
+		{ltitIdent, "Массив"},
+		{ltitCloseParenthesis, ""},
+		{ltitColon, ""},
+		{ltitIdent, "Логический"},
+	})
+
+	if !ok {
+		t.Fatal(S)
+	}
+}

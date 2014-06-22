@@ -27,6 +27,8 @@ const (
 	ltitAND
 	ltitXOR
 	ltitNOT
+	ltitFunctionDeclaration
+	ltitColon
 )
 
 type TLanguageItem struct {
@@ -109,84 +111,84 @@ func (self *TLexem) toKeywordId() int {
 }
 
 /*
-  'функция' <имя функции> '(' {<имя параметра> ':' <тип>} ')'
-  <локальные переменные>
-  'начало' <тело функции> 'конец'
+BNF-правила для объявления функции
+ОБЪЯВЛЕНИЕ ФУНКЦИИ = <ФУНКЦИЯ> <ИМЯ ФУНКЦИИ> '(' [<ПАРАМЕТРЫ>] ')' [<РЕЗУЛЬТАТ>]
+  [<ЛОКАЛЬНЫЕ ПЕРЕМЕННЫЕ>] <НАЧАЛО> [<ТЕЛО ФУНКЦИИ>] <КОНЕЦ>
+ФУНКЦИЯ = 'функция' | 'function' | 'func' | 'def'
+НАЧАЛО = 'начало' | 'begin' | '{'
+КОНЕЦ = 'конец' | 'end' | '}'
+ИМЯ ФУНКЦИИ = [<ИМЯ КЛАССА> '.']<ИДЕНТИФИКАТОР>
+ИМЯ КЛАССА = <ИДЕНТИФИКАТОР>
+ПАРАМЕТРЫ = <ПАРАМЕТР> {',' <ПАРАМЕТР>}
+ПАРАМЕТР = <ИМЯ ПАРАМЕТРА> [':' <ТИП>]
+РЕЗУЛЬТАТ = ':' <ТИП>
+ТИП = [<ИМЯ ПАКЕТА> '.']<ИДЕНТИФИКАТОР>
+ИМЯ ПАКЕТА = <ИДЕНТИФИКАТОР>
+<ЛОКАЛЬНЫЕ ПЕРЕМЕННЫЕ> = 'переменные' | 'var'
 */
-func generateFunction(ALexem PLexem) {
-	var S string
-	var L PLexem
-	functionName := ALexem
+func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
+	var (
+		E    error
+		S    string
+		item TLanguageItem
+	)
 
-	parameter := getLexemAfterLexem(ALexem, ltOpenParenthesis, "")
-	L = parameter
-	for L != nil {
-		if L.Type == ltCloseParenthesis {
-			L = L.Next
-			break
-		}
-		L = L.Next
-	}
+	S = self.Lexem.LexemAsString()
+	//TODO: преобразовать лексему в ключевое слово
+	if S == "функция" || S == "function" || S == "func" || S == "def" {
+		item = TLanguageItem{Type: ltitFunctionDeclaration}
+		self.LanguageItems = append(self.LanguageItems, item)
 
-	if L != nil && L.Type == ltColon {
-		L = L.Next
-	}
-
-	// печатаю тип функции
-	for L != nil {
-		if L.Type == ltEOL {
-			L = L.Next
-			break
+		self.Lexem = self.Lexem.Next
+		E = self.translateComplexIdent()
+		if E != nil {
+			return self.Lexem.errorAt(&lsaError{Msg: E.Error()})
 		}
 
-		S = (*L).LexemAsString()
-		fmt.Printf(" %s", S)
+		if self.Lexem.Type != ltOpenParenthesis {
+			return self.Lexem.errorAt(&lsaError{Msg: "Отсутствует '('"})
+		}
+		item = TLanguageItem{Type: ltitOpenParenthesis}
+		self.LanguageItems = append(self.LanguageItems, item)
+		self.Lexem = self.Lexem.Next
 
-		L = L.Next
-	}
+		if self.Lexem.Type != ltCloseParenthesis {
+			for {
+				E = self.translateComplexIdent()
+				if E != nil {
+					//TODO: Улучшить сообщение об ошибке
+					return self.Lexem.errorAt(&lsaError{
+						Msg: "Ожидается имя параметра. " + E.Error()})
+				}
 
-	localVars := L
-
-	// печатаю имя функции
-	L = functionName
-	for L != nil {
-		if L.Type == ltOpenParenthesis {
-			fmt.Print(" (")
-			break
+				if self.Lexem.Type == ltCloseParenthesis {
+					item = TLanguageItem{Type: ltitCloseParenthesis}
+					self.LanguageItems = append(self.LanguageItems, item)
+					self.Lexem = self.Lexem.Next
+					break
+				}
+			}
 		}
 
-		S = (*L).LexemAsString()
-		fmt.Printf(" %s", S)
-		L = L.Next
-	}
+		// читаю тип возвращаемого значения
+		if self.Lexem.Type == ltColon {
+			item = TLanguageItem{Type: ltitColon}
+			self.LanguageItems = append(self.LanguageItems, item)
+			self.Lexem = self.Lexem.Next
 
-	// печатаю параметры функции
-	L = parameter
-	for L != nil {
-		if L.Type == ltCloseParenthesis {
-			fmt.Print(" )")
-			break
+			E = self.translateComplexIdent()
+			if E != nil {
+				//TODO: Улучшить сообщение об ошибке
+				return self.Lexem.errorAt(&lsaError{
+					Msg: "Ожидается тип возвращаемого значения. " + E.Error()})
+			}
 		}
 
-		S = (*L).LexemAsString()
-		fmt.Printf(" %s", S)
-		L = L.Next
+	} else {
+		return self.Lexem.errorAt(&lsaError{Msg: "Can't translateFunctionDeclaration, type not function."})
 	}
 
-	L = getLexemAfterLexem(localVars, ltIdent, "начало")
-
-	fmt.Print(" {\n")
-
-	// печатаю тело функции
-	for L != nil {
-		if L.Type == ltIdent && (*L).LexemAsString() == "конец" {
-			break
-		}
-		S = (*L).LexemAsString()
-		fmt.Printf("\t%s\n", S)
-		L = L.Next
-	}
-	fmt.Print("}\n")
+	return nil
 }
 
 func (self *TLexem) skipEOL() PLexem {
@@ -449,7 +451,7 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 			{
 				keywordId := (*ALexem).toKeywordId()
 				if keywordId == kwiFunction {
-					generateFunction(ALexem.Next)
+					syntaxDescriptor.translateFunctionDeclaration()
 				} else {
 					ALexem = ALexem.Next
 				}
