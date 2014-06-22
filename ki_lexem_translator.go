@@ -15,8 +15,20 @@ const (
 	ltitOpenParenthesis
 	ltitCloseParenthesis
 	ltitNumber
-	ltitMathOperation //TODO: для каждой операции свой код
 	ltitString
+	ltitChar
+	ltitMathAdd
+	ltitMathSub
+	ltitMathMul
+	ltitMathDiv
+	ltitModulo
+	ltitInvolution
+	ltitOR
+	ltitAND
+	ltitXOR
+	ltitNOT
+	ltitFunctionDeclaration
+	ltitColon
 )
 
 type TLanguageItem struct {
@@ -26,13 +38,15 @@ type TLanguageItem struct {
 	Index uint
 }
 
+type TStringArray []string
+
 type TSyntaxDescriptor struct {
 	Lexem         *TLexem
 	LanguageItems []TLanguageItem
 	Parenthesis   int
-	StrNumbers    []string //= make([]string, 0, 1024)
-	StrIdents     []string //make([]string, 0, 1024)
-	StrStrings    []string
+	StrNumbers    TStringArray
+	StrIdents     TStringArray
+	StrStrings    TStringArray
 }
 
 func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
@@ -83,6 +97,7 @@ func (self *TSyntaxDescriptor) Init() {
 	self.LanguageItems = make([]TLanguageItem, 0, 0)
 	self.StrIdents = make([]string, 0, 0)
 	self.StrNumbers = make([]string, 0, 0)
+	self.StrStrings = make([]string, 0, 0)
 }
 
 func (self *TLexem) toKeywordId() int {
@@ -96,84 +111,84 @@ func (self *TLexem) toKeywordId() int {
 }
 
 /*
-  'функция' <имя функции> '(' {<имя параметра> ':' <тип>} ')'
-  <локальные переменные>
-  'начало' <тело функции> 'конец'
+BNF-правила для объявления функции
+ОБЪЯВЛЕНИЕ ФУНКЦИИ = <ФУНКЦИЯ> <ИМЯ ФУНКЦИИ> '(' [<ПАРАМЕТРЫ>] ')' [<РЕЗУЛЬТАТ>]
+  [<ЛОКАЛЬНЫЕ ПЕРЕМЕННЫЕ>] <НАЧАЛО> [<ТЕЛО ФУНКЦИИ>] <КОНЕЦ>
+ФУНКЦИЯ = 'функция' | 'function' | 'func' | 'def'
+НАЧАЛО = 'начало' | 'begin' | '{'
+КОНЕЦ = 'конец' | 'end' | '}'
+ИМЯ ФУНКЦИИ = [<ИМЯ КЛАССА> '.']<ИДЕНТИФИКАТОР>
+ИМЯ КЛАССА = <ИДЕНТИФИКАТОР>
+ПАРАМЕТРЫ = <ПАРАМЕТР> {',' <ПАРАМЕТР>}
+ПАРАМЕТР = <ИМЯ ПАРАМЕТРА> [':' <ТИП>]
+РЕЗУЛЬТАТ = ':' <ТИП>
+ТИП = [<ИМЯ ПАКЕТА> '.']<ИДЕНТИФИКАТОР>
+ИМЯ ПАКЕТА = <ИДЕНТИФИКАТОР>
+<ЛОКАЛЬНЫЕ ПЕРЕМЕННЫЕ> = 'переменные' | 'var'
 */
-func generateFunction(ALexem PLexem) {
-	var S string
-	var L PLexem
-	functionName := ALexem
+func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
+	var (
+		E    error
+		S    string
+		item TLanguageItem
+	)
 
-	parameter := getLexemAfterLexem(ALexem, ltOpenParenthesis, "")
-	L = parameter
-	for L != nil {
-		if L.Type == ltCloseParenthesis {
-			L = L.Next
-			break
-		}
-		L = L.Next
-	}
+	S = self.Lexem.LexemAsString()
+	//TODO: преобразовать лексему в ключевое слово
+	if S == "функция" || S == "function" || S == "func" || S == "def" {
+		item = TLanguageItem{Type: ltitFunctionDeclaration}
+		self.LanguageItems = append(self.LanguageItems, item)
 
-	if L != nil && L.Type == ltColon {
-		L = L.Next
-	}
-
-	// печатаю тип функции
-	for L != nil {
-		if L.Type == ltEOL {
-			L = L.Next
-			break
+		self.Lexem = self.Lexem.Next
+		E = self.translateComplexIdent()
+		if E != nil {
+			return self.Lexem.errorAt(&lsaError{Msg: E.Error()})
 		}
 
-		S = (*L).LexemAsString()
-		fmt.Printf(" %s", S)
+		if self.Lexem.Type != ltOpenParenthesis {
+			return self.Lexem.errorAt(&lsaError{Msg: "Отсутствует '('"})
+		}
+		item = TLanguageItem{Type: ltitOpenParenthesis}
+		self.LanguageItems = append(self.LanguageItems, item)
+		self.Lexem = self.Lexem.Next
 
-		L = L.Next
-	}
+		if self.Lexem.Type != ltCloseParenthesis {
+			for {
+				E = self.translateComplexIdent()
+				if E != nil {
+					//TODO: Улучшить сообщение об ошибке
+					return self.Lexem.errorAt(&lsaError{
+						Msg: "Ожидается имя параметра. " + E.Error()})
+				}
 
-	localVars := L
-
-	// печатаю имя функции
-	L = functionName
-	for L != nil {
-		if L.Type == ltOpenParenthesis {
-			fmt.Print(" (")
-			break
+				if self.Lexem.Type == ltCloseParenthesis {
+					item = TLanguageItem{Type: ltitCloseParenthesis}
+					self.LanguageItems = append(self.LanguageItems, item)
+					self.Lexem = self.Lexem.Next
+					break
+				}
+			}
 		}
 
-		S = (*L).LexemAsString()
-		fmt.Printf(" %s", S)
-		L = L.Next
-	}
+		// читаю тип возвращаемого значения
+		if self.Lexem.Type == ltColon {
+			item = TLanguageItem{Type: ltitColon}
+			self.LanguageItems = append(self.LanguageItems, item)
+			self.Lexem = self.Lexem.Next
 
-	// печатаю параметры функции
-	L = parameter
-	for L != nil {
-		if L.Type == ltCloseParenthesis {
-			fmt.Print(" )")
-			break
+			E = self.translateComplexIdent()
+			if E != nil {
+				//TODO: Улучшить сообщение об ошибке
+				return self.Lexem.errorAt(&lsaError{
+					Msg: "Ожидается тип возвращаемого значения. " + E.Error()})
+			}
 		}
 
-		S = (*L).LexemAsString()
-		fmt.Printf(" %s", S)
-		L = L.Next
+	} else {
+		return self.Lexem.errorAt(&lsaError{Msg: "Can't translateFunctionDeclaration, type not function."})
 	}
 
-	L = getLexemAfterLexem(localVars, ltIdent, "начало")
-
-	fmt.Print(" {\n")
-
-	// печатаю тело функции
-	for L != nil {
-		if L.Type == ltIdent && (*L).LexemAsString() == "конец" {
-			break
-		}
-		S = (*L).LexemAsString()
-		fmt.Printf("\t%s\n", S)
-		L = L.Next
-	}
-	fmt.Print("}\n")
+	return nil
 }
 
 func (self *TLexem) skipEOL() PLexem {
@@ -189,21 +204,41 @@ func (L *TLexem) errorAt(E *lsaError) error {
 	return E
 }
 
-//TODO: не создавать одинаковые идентификаторы в Self.StrIdents
+func (list *TStringArray) addUnique(S string) uint {
+	for i, v := range *list {
+		if v == S {
+			return uint(i)
+		}
+	}
+	(*list) = append((*list), S)
+	return uint(len(*list) - 1)
+}
+
+func (self *TSyntaxDescriptor) translateNumber() error {
+	S := self.Lexem.LexemAsString()
+	index := self.StrNumbers.addUnique(S)
+
+	item := TLanguageItem{Type: ltitNumber, Index: index}
+	self.LanguageItems = append(self.LanguageItems, item)
+
+	self.Lexem = self.Lexem.Next
+	return nil
+}
+
 func (Self *TSyntaxDescriptor) translateComplexIdent() error {
 	if Self.Lexem.Type != ltIdent {
 		return Self.Lexem.errorAt(&lsaError{Msg: "Can't translateComplexIdent, type not ltIdent."})
 	}
 
-	cnt := uint(len(Self.StrIdents))
-	Self.StrIdents = append(Self.StrIdents, Self.Lexem.LexemAsString())
+	S := Self.Lexem.LexemAsString()
 	Self.Lexem = Self.Lexem.Next
-
 	for Self.Lexem.Type == ltIdent {
-		Self.StrIdents[cnt] += " " + Self.Lexem.LexemAsString()
+		S += " " + Self.Lexem.LexemAsString()
 		Self.Lexem = Self.Lexem.Next
 	}
-	item := TLanguageItem{Type: ltitIdent, Index: cnt}
+
+	index := Self.StrIdents.addUnique(S)
+	item := TLanguageItem{Type: ltitIdent, Index: index}
 	Self.LanguageItems = append(Self.LanguageItems, item)
 	return nil
 }
@@ -217,19 +252,7 @@ func (self *TSyntaxDescriptor) translateString() error {
 	S := self.Lexem.LexemAsString()
 	self.Lexem = self.Lexem.Next
 
-	L := uint(len(self.StrStrings))
-	index := L
-	for k, v := range self.StrStrings {
-		if v == S {
-			index = uint(k)
-			break
-		}
-	}
-	if index == L {
-		self.StrStrings = append(self.StrStrings, S)
-	} else {
-		self.StrStrings[index] = S
-	}
+	index := self.StrStrings.addUnique(S)
 	item := TLanguageItem{Type: ltitString, Index: index}
 	self.LanguageItems = append(self.LanguageItems, item)
 
@@ -237,7 +260,6 @@ func (self *TSyntaxDescriptor) translateString() error {
 }
 
 //TODO: распознание символа как аргумента
-//TODO: распознание строки как аргумента
 //TODO: распознание вызова функции как аргумента
 /*
 АРГУМЕНТ = {'('} <ПРОСТОЙ АРГУМЕНТ> {')'}
@@ -299,12 +321,37 @@ func (Self *TSyntaxDescriptor) translateArgument() error {
 	return nil
 }
 
+func (self *TSyntaxDescriptor) translateOperation() error {
+	var lit TLanguageItemType
+	switch self.Lexem.Type {
+	case ltStar:
+		lit = ltitMathMul
+
+	case ltPlus:
+		lit = ltitMathAdd
+
+	case ltMinus:
+		lit = ltitMathSub
+
+	case ltSlash:
+		lit = ltitMathDiv
+	}
+
+	item := TLanguageItem{Type: lit}
+	self.LanguageItems = append(self.LanguageItems, item)
+	self.Lexem = self.Lexem.Next
+	return nil
+
+}
+
 /*
 BNF-определения для присваивания выражения переменной
 <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '=' <ВЫРАЖЕНИЕ>
 СЛОЖНЫЙ ИДЕНТИФИКАТОР = <ИДЕНТИФИКАТОР> {' ' <ИДЕНТИФИКАТОР>}
 ВЫРАЖЕНИЕ = <АРГУМЕНТ> {<ОПЕРАЦИЯ> <АРГУМЕНТ>}
+СЛОЖНЫЙ АРГУМЕНТ = [<УНАРНАЯ ОПЕРАЦИЯ>] <АРГУМЕНТ>
 ОПЕРАЦИЯ = '+' | '-' | '*' | '/' | '%' | '^'
+УНАРНАЯ ОПЕРАЦИЯ = '!'
 */
 func (Self *TSyntaxDescriptor) translateAssignment() error {
 	var item TLanguageItem
@@ -349,9 +396,10 @@ Loop:
 		//      остальных операций: > < >= <= >> << ! ~
 		case ltPlus, ltMinus, ltStar, ltSlash, ltPercent:
 			{
-				item = TLanguageItem{Type: ltitMathOperation}
-				Self.LanguageItems = append(Self.LanguageItems, item)
-				Self.Lexem = Self.Lexem.Next
+				E = Self.translateOperation()
+				if E != nil {
+					return E
+				}
 
 				E = Self.translateArgument()
 				if E != nil {
@@ -403,7 +451,7 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 			{
 				keywordId := (*ALexem).toKeywordId()
 				if keywordId == kwiFunction {
-					generateFunction(ALexem.Next)
+					syntaxDescriptor.translateFunctionDeclaration()
 				} else {
 					ALexem = ALexem.Next
 				}

@@ -104,7 +104,7 @@ func TestTranslateAssigment(t *testing.T) {
 	)
 
 	//**************************************************************************
-	S = "Важное число = 42"
+	S = "Важное число = 42 + 1 - 17 / 2.71 * 0.37"
 	//**************************************************************************
 	if SD.Lexem, E = stringToLexems(S); E != nil {
 		t.Fatal(E.Error())
@@ -118,6 +118,14 @@ func TestTranslateAssigment(t *testing.T) {
 		{ltitIdent, "Важное число"},
 		{ltitAssignment, ""},
 		{ltitNumber, "42"},
+		{ltitMathAdd, ""},
+		{ltitNumber, "1"},
+		{ltitMathSub, ""},
+		{ltitNumber, "17"},
+		{ltitMathDiv, ""},
+		{ltitNumber, "2.71"},
+		{ltitMathMul, ""},
+		{ltitNumber, "0.37"},
 	})
 
 	if !ok {
@@ -140,9 +148,9 @@ func TestTranslateAssigment(t *testing.T) {
 		{ltitIdent, "Длина окружности"},
 		{ltitAssignment, ""},
 		{ltitIdent, "Diameter of the circle"},
-		{ltitMathOperation, ""},
+		{ltitMathMul, ""},
 		{ltitIdent, "PI"},
-		{ltitMathOperation, ""},
+		{ltitMathMul, ""},
 		{ltitNumber, "3.14"},
 	})
 
@@ -164,11 +172,58 @@ func TestTranslateAssigment(t *testing.T) {
 		{ltitIdent, "Текст"},
 		{ltitAssignment, ""},
 		{ltitString, "Привет"},
-		{ltitMathOperation, ""},
+		{ltitMathAdd, ""},
 		{ltitString, " "},
-		{ltitMathOperation, ""},
+		{ltitMathAdd, ""},
 		{ltitString, "мир!"},
 	})
+	if !ok {
+		t.Fatal(S)
+	}
+}
+
+func Test_addUnique(t *testing.T) {
+	var list TStringArray
+	list.addUnique("test")
+	list.addUnique("2")
+	list.addUnique("test")
+	list.addUnique("3")
+	list.addUnique("2")
+
+	if list[0] != "test" || list[1] != "2" || list[2] != "3" {
+		t.Fail()
+	}
+}
+
+func TestTranslateFunctionDeclaration(t *testing.T) {
+	var (
+		SD TSyntaxDescriptor
+		E  error
+		S  string
+		ok bool
+	)
+
+	//**************************************************************************
+	S = "функция Сравнить элементы массива(Массив): Логический"
+	//**************************************************************************
+	if SD.Lexem, E = stringToLexems(S); E != nil {
+		t.Fatal(E.Error())
+	}
+
+	if E = SD.translateFunctionDeclaration(); E != nil {
+		t.Fatal(E.Error())
+	}
+
+	S, ok = compareLanguageItems(SD, []tLanguageItem{
+		{ltitFunctionDeclaration, ""},
+		{ltitIdent, "Сравнить элементы массива"},
+		{ltitOpenParenthesis, ""},
+		{ltitIdent, "Массив"},
+		{ltitCloseParenthesis, ""},
+		{ltitColon, ""},
+		{ltitIdent, "Логический"},
+	})
+
 	if !ok {
 		t.Fatal(S)
 	}
