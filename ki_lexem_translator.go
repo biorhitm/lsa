@@ -26,13 +26,15 @@ type TLanguageItem struct {
 	Index uint
 }
 
+type TStringArray []string
+
 type TSyntaxDescriptor struct {
 	Lexem         *TLexem
 	LanguageItems []TLanguageItem
 	Parenthesis   int
-	StrNumbers    []string //= make([]string, 0, 1024)
-	StrIdents     []string //make([]string, 0, 1024)
-	StrStrings    []string
+	StrNumbers    TStringArray
+	StrIdents     TStringArray
+	StrStrings    TStringArray
 }
 
 func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
@@ -83,6 +85,7 @@ func (self *TSyntaxDescriptor) Init() {
 	self.LanguageItems = make([]TLanguageItem, 0, 0)
 	self.StrIdents = make([]string, 0, 0)
 	self.StrNumbers = make([]string, 0, 0)
+	self.StrStrings = make([]string, 0, 0)
 }
 
 func (self *TLexem) toKeywordId() int {
@@ -189,21 +192,41 @@ func (L *TLexem) errorAt(E *lsaError) error {
 	return E
 }
 
-//TODO: не создавать одинаковые идентификаторы в Self.StrIdents
+func (list *TStringArray) addUnique(S string) uint {
+	for i, v := range (*list) {
+		if v == S {
+			return uint(i)
+		}
+	}
+	(*list) = append((*list), S)
+	return uint(len(*list)-1)
+}
+
+func (self *TSyntaxDescriptor) translateNumber() error {
+	S := self.Lexem.LexemAsString()
+	index := self.StrNumbers.addUnique(S)
+
+	item := TLanguageItem{Type: ltitNumber,	Index: index}
+	self.LanguageItems = append(self.LanguageItems, item)
+
+	self.Lexem = self.Lexem.Next
+	return nil
+}
+
 func (Self *TSyntaxDescriptor) translateComplexIdent() error {
 	if Self.Lexem.Type != ltIdent {
 		return Self.Lexem.errorAt(&lsaError{Msg: "Can't translateComplexIdent, type not ltIdent."})
 	}
 
-	cnt := uint(len(Self.StrIdents))
-	Self.StrIdents = append(Self.StrIdents, Self.Lexem.LexemAsString())
+	S := Self.Lexem.LexemAsString()
 	Self.Lexem = Self.Lexem.Next
-
 	for Self.Lexem.Type == ltIdent {
-		Self.StrIdents[cnt] += " " + Self.Lexem.LexemAsString()
+		S += " " + Self.Lexem.LexemAsString()
 		Self.Lexem = Self.Lexem.Next
 	}
-	item := TLanguageItem{Type: ltitIdent, Index: cnt}
+
+	index := Self.StrIdents.addUnique(S)
+	item := TLanguageItem{Type: ltitIdent, Index: index}
 	Self.LanguageItems = append(Self.LanguageItems, item)
 	return nil
 }
@@ -217,19 +240,7 @@ func (self *TSyntaxDescriptor) translateString() error {
 	S := self.Lexem.LexemAsString()
 	self.Lexem = self.Lexem.Next
 
-	L := uint(len(self.StrStrings))
-	index := L
-	for k, v := range self.StrStrings {
-		if v == S {
-			index = uint(k)
-			break
-		}
-	}
-	if index == L {
-		self.StrStrings = append(self.StrStrings, S)
-	} else {
-		self.StrStrings[index] = S
-	}
+	index := self.StrStrings.addUnique(S)
 	item := TLanguageItem{Type: ltitString, Index: index}
 	self.LanguageItems = append(self.LanguageItems, item)
 

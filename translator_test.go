@@ -173,3 +173,16 @@ func TestTranslateAssigment(t *testing.T) {
 		t.Fatal(S)
 	}
 }
+
+func Test_addUnique(t *testing.T) {
+	var list TStringArray
+	list.addUnique("test")
+	list.addUnique("2")
+	list.addUnique("test")
+	list.addUnique("3")
+	list.addUnique("2")
+
+	if list[0] != "test" || list[1] != "2" || list[2] != "3" {
+		t.Fail()
+	}
+}
