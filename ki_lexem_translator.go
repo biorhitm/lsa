@@ -8,7 +8,7 @@ type TLanguageItemType uint
 
 //TLanguageItemType типы синтаксичекских элементов
 const (
-	ltitUnknown = TLanguageItemType(iota)
+	ltitUnknown TLanguageItemType = iota
 	ltitEOF
 	ltitIdent
 	ltitAssignment
@@ -28,7 +28,10 @@ const (
 	ltitXOR
 	ltitNOT
 	ltitFunctionDeclaration
-	ltitColon
+	ltitLocalVarList
+	ltitDataType
+	ltitBegin
+	ltitEnd
 )
 
 type TLanguageItem struct {
@@ -100,6 +103,11 @@ func (self *TSyntaxDescriptor) Init() {
 	self.StrStrings = make([]string, 0, 0)
 }
 
+func (self *TSyntaxDescriptor) AppendItem(AType TLanguageItemType) {
+	item := TLanguageItem{Type: AType}
+	self.LanguageItems = append(self.LanguageItems, item)
+}
+
 func (self *TLexem) toKeywordId() int {
 	S := (*self).LexemAsString()
 	for i := 0; i < len(keywordList); i++ {
@@ -124,7 +132,10 @@ BNF-правила для объявления функции
 РЕЗУЛЬТАТ = ':' <ТИП>
 ТИП = [<ИМЯ ПАКЕТА> '.']<ИДЕНТИФИКАТОР>
 ИМЯ ПАКЕТА = <ИДЕНТИФИКАТОР>
-<ЛОКАЛЬНЫЕ ПЕРЕМЕННЫЕ> = 'переменные' | 'var'
+<ЛОКАЛЬНЫЕ ПЕРЕМЕННЫЕ> = ('переменные' | 'var') <СПИСОК ПЕРЕМЕННЫХ>
+СПИСОК ПЕРЕМЕННЫХ = <ПЕРЕМЕННАЯ> {(';' | <LF>) <ПЕРЕМЕННАЯ>}
+ПЕРЕМЕННАЯ = <ИМЯ ПЕРЕМЕННОЙ> ':' <ТИП>
+ИМЯ ПЕРЕМЕННОЙ = <ИДЕНТИФИКАТОР>
 */
 func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	var (
@@ -136,10 +147,9 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	S = self.Lexem.LexemAsString()
 	//TODO: преобразовать лексему в ключевое слово
 	if S == "функция" || S == "function" || S == "func" || S == "def" {
-		item = TLanguageItem{Type: ltitFunctionDeclaration}
-		self.LanguageItems = append(self.LanguageItems, item)
-
+		self.AppendItem(ltitFunctionDeclaration)
 		self.Lexem = self.Lexem.Next
+
 		E = self.translateComplexIdent()
 		if E != nil {
 			return self.Lexem.errorAt(&lsaError{Msg: E.Error()})
@@ -148,8 +158,7 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 		if self.Lexem.Type != ltOpenParenthesis {
 			return self.Lexem.errorAt(&lsaError{Msg: "Отсутствует '('"})
 		}
-		item = TLanguageItem{Type: ltitOpenParenthesis}
-		self.LanguageItems = append(self.LanguageItems, item)
+		self.AppendItem(ltitOpenParenthesis)
 		self.Lexem = self.Lexem.Next
 
 		if self.Lexem.Type != ltCloseParenthesis {
@@ -162,8 +171,7 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 				}
 
 				if self.Lexem.Type == ltCloseParenthesis {
-					item = TLanguageItem{Type: ltitCloseParenthesis}
-					self.LanguageItems = append(self.LanguageItems, item)
+					self.AppendItem(ltitCloseParenthesis)
 					self.Lexem = self.Lexem.Next
 					break
 				}
@@ -172,8 +180,6 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 
 		// читаю тип возвращаемого значения
 		if self.Lexem.Type == ltColon {
-			item = TLanguageItem{Type: ltitColon}
-			self.LanguageItems = append(self.LanguageItems, item)
 			self.Lexem = self.Lexem.Next
 
 			E = self.translateComplexIdent()
@@ -182,6 +188,57 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 				return self.Lexem.errorAt(&lsaError{
 					Msg: "Ожидается тип возвращаемого значения. " + E.Error()})
 			}
+		}
+
+		// читаю список локальных переменных
+		S = self.Lexem.LexemAsString()
+		if S == "переменные" || S == "var" {
+			self.AppendItem(ltitLocalVarList)
+			self.Lexem = self.Lexem.Next
+
+			for {
+				E = self.translateComplexIdent()
+				if E != nil {
+					//TODO: Улучшить сообщение об ошибке
+					return self.Lexem.errorAt(&lsaError{
+						Msg: "Ожидается имя переменной. " + E.Error()})
+				}
+
+				if self.Lexem.Type != ltColon {
+					return self.Lexem.errorAt(&lsaError{
+						Msg: "Ожидается ':' <Тип>. "})
+				}
+				self.Lexem = self.Lexem.Next
+
+				E = self.translateComplexIdent()
+				if E != nil {
+					//TODO: Улучшить сообщение об ошибке
+					return self.Lexem.errorAt(&lsaError{
+						Msg: "Ожидается тип переменной. " + E.Error()})
+				}
+
+				S = self.Lexem.LexemAsString()
+				if S == "начало" || S == "begin" || S == "{" {
+					self.AppendItem(ltitBegin)
+					self.Lexem = self.Lexem.Next
+					break
+				}
+			}
+		}
+
+		//читаю тело функции
+		for {
+			if self.Lexem.Type == ltEOF {
+				break
+			}
+			S = self.Lexem.LexemAsString()
+			if S == "конец" || S == "end" || S == "}" {
+				item = TLanguageItem{Type: ltitEnd}
+				self.LanguageItems = append(self.LanguageItems, item)
+				self.Lexem = self.Lexem.Next
+				break
+			}
+			self.Lexem = self.Lexem.Next
 		}
 
 	} else {

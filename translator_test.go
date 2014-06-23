@@ -204,26 +204,24 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	)
 
 	//**************************************************************************
-	S = "функция Сравнить элементы массива(Массив): Логический"
+	S = "функция Сравнить элементы массива(Массив): Логический\n" +
+		"переменные А Целый начало конец"
 	//**************************************************************************
 	if SD.Lexem, E = stringToLexems(S); E != nil {
 		t.Fatal(E.Error())
 	}
-
 	if E = SD.translateFunctionDeclaration(); E != nil {
 		t.Fatal(E.Error())
 	}
-
 	S, ok = compareLanguageItems(SD, []tLanguageItem{
 		{ltitFunctionDeclaration, ""},
 		{ltitIdent, "Сравнить элементы массива"},
 		{ltitOpenParenthesis, ""},
 		{ltitIdent, "Массив"},
 		{ltitCloseParenthesis, ""},
-		{ltitColon, ""},
 		{ltitIdent, "Логический"},
+		{ltitLocalVarList, ""},
 	})
-
 	if !ok {
 		t.Fatal(S)
 	}
