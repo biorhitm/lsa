@@ -32,6 +32,9 @@ const (
 	ltitDataType
 	ltitBegin
 	ltitEnd
+	ltitClassMember
+	ltitParameters
+	ltitPackageName
 )
 
 type TLanguageItem struct {
@@ -108,6 +111,42 @@ func (self *TSyntaxDescriptor) AppendItem(AType TLanguageItemType) {
 	self.LanguageItems = append(self.LanguageItems, item)
 }
 
+func (self *TSyntaxDescriptor) AppendIdent(AName string) {
+	index := self.StrIdents.addUnique(AName)
+	item := TLanguageItem{Type: ltitIdent, Index: index}
+	self.LanguageItems = append(self.LanguageItems, item)
+}
+
+func (self *TSyntaxDescriptor) AppendNumber(S string) {
+	index := self.StrNumbers.addUnique(S)
+	item := TLanguageItem{Type: ltitNumber, Index: index}
+	self.LanguageItems = append(self.LanguageItems, item)
+}
+
+func (self *TSyntaxDescriptor) AppendString(S string) {
+	index := self.StrStrings.addUnique(S)
+	item := TLanguageItem{Type: ltitString, Index: index}
+	self.LanguageItems = append(self.LanguageItems, item)
+}
+
+func (self *TSyntaxDescriptor) NextLexem() {
+	if self.Lexem != nil && self.Lexem.Type != ltEOF {
+		self.Lexem = self.Lexem.Next
+	}
+}
+func (self *TSyntaxDescriptor) ExtractComplexIdent() (string, bool) {
+	if self.Lexem.Type != ltIdent {
+		return "", false
+	}
+	S := self.Lexem.LexemAsString()
+	self.NextLexem()
+	for self.Lexem.Type == ltIdent {
+		S += " " + self.Lexem.LexemAsString()
+		self.NextLexem()
+	}
+	return S, true
+}
+
 func (self *TLexem) toKeywordId() int {
 	S := (*self).LexemAsString()
 	for i := 0; i < len(keywordList); i++ {
@@ -139,110 +178,159 @@ BNF-правила для объявления функции
 */
 func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	var (
-		E    error
-		S    string
-		item TLanguageItem
+		E       error
+		S, name string
+		ok      bool
 	)
 
 	S = self.Lexem.LexemAsString()
 	//TODO: преобразовать лексему в ключевое слово
-	if S == "функция" || S == "function" || S == "func" || S == "def" {
-		self.AppendItem(ltitFunctionDeclaration)
-		self.Lexem = self.Lexem.Next
+	if !(S == "функция" || S == "function" || S == "func" || S == "def") {
+		return self.Lexem.errorAt(&lsaError{Msg: "Can't translateFunctionDeclaration, type not function."})
+	}
 
-		E = self.translateComplexIdent()
-		if E != nil {
-			return self.Lexem.errorAt(&lsaError{Msg: E.Error()})
+	self.AppendItem(ltitFunctionDeclaration)
+	self.NextLexem()
+
+	// [<ИМЯ КЛАССА> '.']<ИДЕНТИФИКАТОР> '('
+	if name, ok = self.ExtractComplexIdent(); !ok {
+		return self.Lexem.errorAt(&lsaError{Msg: "Ожидается идентификатор"})
+	}
+
+	if self.Lexem.Type == ltDot { //функция является членом класса
+		self.NextLexem()
+		self.AppendItem(ltitClassMember)
+		self.AppendIdent(name)
+		if name, ok = self.ExtractComplexIdent(); !ok {
+			return self.Lexem.errorAt(&lsaError{Msg: "Ожидается идентификатор"})
 		}
+	}
+	self.AppendIdent(name)
 
-		if self.Lexem.Type != ltOpenParenthesis {
-			return self.Lexem.errorAt(&lsaError{Msg: "Отсутствует '('"})
+	//TODO: необязательные скобки, если нет параметров
+	if self.Lexem.Type != ltOpenParenthesis {
+		return self.Lexem.errorAt(&lsaError{Msg: "Ожидается '('"})
+	}
+	self.NextLexem()
+
+	//ПАРАМЕТРЫ = <ПАРАМЕТР> {',' <ПАРАМЕТР>}
+	//ПАРАМЕТР = <ИМЯ ПАРАМЕТРА> [':' <ТИП>]
+	self.AppendItem(ltitParameters)
+	typeNotPresent := true
+	for {
+		if name, ok = self.ExtractComplexIdent(); !ok {
+			return self.Lexem.errorAt(&lsaError{Msg: "Ожидается имя параметра"})
 		}
-		self.AppendItem(ltitOpenParenthesis)
-		self.Lexem = self.Lexem.Next
+		self.AppendIdent(name)
 
-		if self.Lexem.Type != ltCloseParenthesis {
-			for {
-				E = self.translateComplexIdent()
-				if E != nil {
-					//TODO: Улучшить сообщение об ошибке
-					return self.Lexem.errorAt(&lsaError{
-						Msg: "Ожидается имя параметра. " + E.Error()})
+		if self.Lexem.Type == ltColon {
+			self.NextLexem()
+			if name, ok = self.ExtractComplexIdent(); !ok {
+				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
+			}
+			self.AppendItem(ltitDataType)
+			if self.Lexem.Type == ltDot {
+				self.NextLexem()
+				self.AppendItem(ltitPackageName)
+				self.AppendIdent(name)
+				if name, ok = self.ExtractComplexIdent(); !ok {
+					return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
 				}
+				typeNotPresent = false
+			}
+			self.AppendIdent(name)
+			typeNotPresent = false
+		}
+		if self.Lexem.Type != ltComma {
+			break
+		}
+		self.NextLexem()
+		typeNotPresent = false
+	}
+	if typeNotPresent {
+		return self.Lexem.errorAt(&lsaError{Msg: "Не указан тип параметра"})
+	}
 
-				if self.Lexem.Type == ltCloseParenthesis {
-					self.AppendItem(ltitCloseParenthesis)
-					self.Lexem = self.Lexem.Next
-					break
-				}
+	//')' [<РЕЗУЛЬТАТ>]
+	//РЕЗУЛЬТАТ = ':' <ТИП>
+	//ТИП = [<ИМЯ ПАКЕТА> '.']<ИМЯ ТИПА>
+	if self.Lexem.Type != ltCloseParenthesis {
+		return self.Lexem.errorAt(&lsaError{Msg: "Ожидается ')'"})
+	}
+	self.NextLexem()
+
+	// читаю тип возвращаемого значения
+	if self.Lexem.Type == ltColon {
+		self.NextLexem()
+
+		if name, ok = self.ExtractComplexIdent(); !ok {
+			return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
+		}
+		if self.Lexem.Type == ltDot {
+			self.NextLexem()
+
+			if name, ok = self.ExtractComplexIdent(); !ok {
+				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
 			}
 		}
+	}
 
-		// читаю тип возвращаемого значения
-		if self.Lexem.Type == ltColon {
-			self.Lexem = self.Lexem.Next
+	// читаю список локальных переменных
+	S = self.Lexem.LexemAsString()
+	if S == "переменные" || S == "var" {
+		self.AppendItem(ltitLocalVarList)
+		self.NextLexem()
+
+		for {
+			E = self.translateComplexIdent()
+			if E != nil {
+				//TODO: Улучшить сообщение об ошибке
+				return self.Lexem.errorAt(&lsaError{
+					Msg: "Ожидается имя переменной. " + E.Error()})
+			}
+
+			if self.Lexem.Type != ltColon {
+				return self.Lexem.errorAt(&lsaError{
+					Msg: "Ожидается ':' <Тип>. "})
+			}
+			self.NextLexem()
 
 			E = self.translateComplexIdent()
 			if E != nil {
 				//TODO: Улучшить сообщение об ошибке
 				return self.Lexem.errorAt(&lsaError{
-					Msg: "Ожидается тип возвращаемого значения. " + E.Error()})
+					Msg: "Ожидается тип переменной. " + E.Error()})
 			}
-		}
 
-		// читаю список локальных переменных
-		S = self.Lexem.LexemAsString()
-		if S == "переменные" || S == "var" {
-			self.AppendItem(ltitLocalVarList)
-			self.Lexem = self.Lexem.Next
-
-			for {
-				E = self.translateComplexIdent()
-				if E != nil {
-					//TODO: Улучшить сообщение об ошибке
-					return self.Lexem.errorAt(&lsaError{
-						Msg: "Ожидается имя переменной. " + E.Error()})
-				}
-
-				if self.Lexem.Type != ltColon {
-					return self.Lexem.errorAt(&lsaError{
-						Msg: "Ожидается ':' <Тип>. "})
-				}
-				self.Lexem = self.Lexem.Next
-
-				E = self.translateComplexIdent()
-				if E != nil {
-					//TODO: Улучшить сообщение об ошибке
-					return self.Lexem.errorAt(&lsaError{
-						Msg: "Ожидается тип переменной. " + E.Error()})
-				}
-
-				S = self.Lexem.LexemAsString()
-				if S == "начало" || S == "begin" || S == "{" {
-					self.AppendItem(ltitBegin)
-					self.Lexem = self.Lexem.Next
-					break
-				}
-			}
-		}
-
-		//читаю тело функции
-		for {
-			if self.Lexem.Type == ltEOF {
-				break
-			}
 			S = self.Lexem.LexemAsString()
-			if S == "конец" || S == "end" || S == "}" {
-				item = TLanguageItem{Type: ltitEnd}
-				self.LanguageItems = append(self.LanguageItems, item)
-				self.Lexem = self.Lexem.Next
+			if S == "начало" || S == "begin" || S == "{" {
 				break
 			}
-			self.Lexem = self.Lexem.Next
 		}
+	}
 
-	} else {
-		return self.Lexem.errorAt(&lsaError{Msg: "Can't translateFunctionDeclaration, type not function."})
+	S = self.Lexem.LexemAsString()
+	if S == "начало" || S == "begin" || S == "{" {
+		self.AppendItem(ltitBegin)
+		self.NextLexem()
+	}
+
+	//читаю тело функции
+	for {
+		if self.Lexem.Type == ltEOF {
+			break
+		}
+		S = self.Lexem.LexemAsString()
+		if S == "конец" || S == "end" || S == "}" {
+			break
+		}
+		self.NextLexem()
+	}
+
+	S = self.Lexem.LexemAsString()
+	if S == "конец" || S == "end" || S == "}" {
+		self.AppendItem(ltitEnd)
+		self.NextLexem()
 	}
 
 	return nil

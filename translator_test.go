@@ -25,18 +25,23 @@ type tLanguageItem struct {
 // Сравнивает список элементов языка с эталонным списком
 // Возвращает истину, если все элементы равны
 func compareLanguageItems(SD TSyntaxDescriptor,
-	AStandardItems []tLanguageItem) (string, bool) {
+	AStandardItems []tLanguageItem) (mes string, result bool) {
 
-	if len(SD.LanguageItems) != len(AStandardItems) {
-		return fmt.Sprintf("Кол-во элементов языка: %d, должно быть: %d",
-			len(SD.LanguageItems), len(AStandardItems)), false
-	}
+	result = true
+
 	for itemNo, _ := range SD.LanguageItems {
 		T := SD.LanguageItems[itemNo].Type
-		if T != AStandardItems[itemNo].Type {
-			return fmt.Sprintf("Тип элемента: %d, ожидается %d, Лексема № %d",
+		if itemNo >= len(AStandardItems) {
+			mes = fmt.Sprintf("Тип элемента: %d, ожидается конец, Лексема № %d",
+				T, itemNo)
+			result = false
+		}
+
+		if result && T != AStandardItems[itemNo].Type {
+			mes = fmt.Sprintf("Тип элемента: %d, ожидается %d, Лексема № %d",
 				SD.LanguageItems[itemNo].Type,
-				AStandardItems[itemNo].Type, itemNo), false
+				AStandardItems[itemNo].Type, itemNo)
+			result = false
 		}
 
 		idx := SD.LanguageItems[itemNo].Index
@@ -62,14 +67,27 @@ func compareLanguageItems(SD TSyntaxDescriptor,
 			S = ""
 		}
 
-		if S != AStandardItems[itemNo].Text {
-			return fmt.Sprintf(
-				"Встретился '%s', ожидается '%s', Лексема № %d",
-				S, AStandardItems[itemNo].Text, itemNo), false
+		if result {
+			if S != AStandardItems[itemNo].Text {
+				mes = fmt.Sprintf(
+					"Встретился '%s', ожидается '%s', Лексема № %d",
+					S, AStandardItems[itemNo].Text, itemNo)
+				result = false
+			}
+		} else {
+			fmt.Printf("[%d]: '%s' ", itemNo, S)
 		}
 	}
+	if result && len(SD.LanguageItems) != len(AStandardItems) {
+		//for _, v := range SD.LanguageItems {
+			//fmt.Printf("%v ", v)
+		//}
+		mes = fmt.Sprintf("Кол-во элементов языка: %d, должно быть: %d",
+			len(SD.LanguageItems), len(AStandardItems))
+		result = false
+	}
 
-	return "", true
+	return
 }
 
 func TestTranslateArgument(t *testing.T) {
@@ -204,8 +222,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	)
 
 	//**************************************************************************
-	S = "функция Сравнить элементы массива(Массив): Логический\n" +
-		"переменные А Целый начало конец"
+	S = "функция Имя класса.Имя функции(А: АТип, Б,В,Г: пакет.Тип)"
 	//**************************************************************************
 	if SD.Lexem, E = stringToLexems(S); E != nil {
 		t.Fatal(E.Error())
@@ -215,12 +232,20 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	}
 	S, ok = compareLanguageItems(SD, []tLanguageItem{
 		{ltitFunctionDeclaration, ""},
-		{ltitIdent, "Сравнить элементы массива"},
-		{ltitOpenParenthesis, ""},
-		{ltitIdent, "Массив"},
-		{ltitCloseParenthesis, ""},
-		{ltitIdent, "Логический"},
-		{ltitLocalVarList, ""},
+		{ltitClassMember, ""},
+		{ltitIdent, "Имя класса"},
+		{ltitIdent, "Имя функции"},
+		{ltitParameters, ""},
+		{ltitIdent, "А"},
+		{ltitDataType, ""},
+		{ltitIdent, "АТип"},
+		{ltitIdent, "Б"},
+		{ltitIdent, "В"},
+		{ltitIdent, "Г"},
+		{ltitDataType, ""},
+		{ltitPackageName, ""},
+		{ltitIdent, "пакет"},
+		{ltitIdent, "Тип"},
 	})
 	if !ok {
 		t.Fatal(S)
