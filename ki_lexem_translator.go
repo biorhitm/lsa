@@ -176,9 +176,9 @@ BNF-правила для объявления функции
 ПЕРЕМЕННАЯ = <ИМЯ ПЕРЕМЕННОЙ> ':' <ТИП>
 ИМЯ ПЕРЕМЕННОЙ = <ИДЕНТИФИКАТОР>
 */
+//TODO: Убрать точку с запятой, я верю что можно обойтись без неё
 func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	var (
-		E       error
 		S, name string
 		ok      bool
 	)
@@ -215,40 +215,44 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 
 	//ПАРАМЕТРЫ = <ПАРАМЕТР> {',' <ПАРАМЕТР>}
 	//ПАРАМЕТР = <ИМЯ ПАРАМЕТРА> [':' <ТИП>]
-	self.AppendItem(ltitParameters)
-	typeNotPresent := true
-	for {
-		if name, ok = self.ExtractComplexIdent(); !ok {
-			return self.Lexem.errorAt(&lsaError{Msg: "Ожидается имя параметра"})
-		}
-		self.AppendIdent(name)
+	if self.Lexem.Type != ltCloseParenthesis {
+		self.AppendItem(ltitParameters)
 
-		if self.Lexem.Type == ltColon {
-			self.NextLexem()
+		typeNotPresent := true
+		for self.Lexem.Type != ltCloseParenthesis {
 			if name, ok = self.ExtractComplexIdent(); !ok {
-				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
+				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается имя параметра"})
 			}
-			self.AppendItem(ltitDataType)
-			if self.Lexem.Type == ltDot {
+			self.AppendIdent(name)
+
+			if self.Lexem.Type == ltColon {
 				self.NextLexem()
-				self.AppendItem(ltitPackageName)
-				self.AppendIdent(name)
 				if name, ok = self.ExtractComplexIdent(); !ok {
 					return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
 				}
+				self.AppendItem(ltitDataType)
+				if self.Lexem.Type == ltDot {
+					self.NextLexem()
+					self.AppendItem(ltitPackageName)
+					self.AppendIdent(name)
+					if name, ok = self.ExtractComplexIdent(); !ok {
+						return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
+					}
+					typeNotPresent = false
+				}
+				self.AppendIdent(name)
 				typeNotPresent = false
 			}
-			self.AppendIdent(name)
+			//если после параметра нет ',', значит список кончился, жду ')'
+			if self.Lexem.Type != ltComma {
+				break
+			}
+			self.NextLexem()
 			typeNotPresent = false
 		}
-		if self.Lexem.Type != ltComma {
-			break
+		if typeNotPresent {
+			return self.Lexem.errorAt(&lsaError{Msg: "Не указан тип параметра"})
 		}
-		self.NextLexem()
-		typeNotPresent = false
-	}
-	if typeNotPresent {
-		return self.Lexem.errorAt(&lsaError{Msg: "Не указан тип параметра"})
 	}
 
 	//')' [<РЕЗУЛЬТАТ>]
@@ -262,17 +266,23 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	// читаю тип возвращаемого значения
 	if self.Lexem.Type == ltColon {
 		self.NextLexem()
-
 		if name, ok = self.ExtractComplexIdent(); !ok {
 			return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
 		}
+		self.AppendItem(ltitDataType)
 		if self.Lexem.Type == ltDot {
 			self.NextLexem()
-
+			self.AppendItem(ltitPackageName)
+			self.AppendIdent(name)
 			if name, ok = self.ExtractComplexIdent(); !ok {
 				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
 			}
 		}
+		self.AppendIdent(name)
+	}
+
+	if self.Lexem.Type == ltSemicolon {
+		self.NextLexem()
 	}
 
 	// читаю список локальных переменных
@@ -281,32 +291,45 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 		self.AppendItem(ltitLocalVarList)
 		self.NextLexem()
 
+		typeNotPresent := true
 		for {
-			E = self.translateComplexIdent()
-			if E != nil {
-				//TODO: Улучшить сообщение об ошибке
-				return self.Lexem.errorAt(&lsaError{
-					Msg: "Ожидается имя переменной. " + E.Error()})
+			if name, ok = self.ExtractComplexIdent(); !ok {
+				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается имя переменной"})
 			}
+			self.AppendIdent(name)
 
-			if self.Lexem.Type != ltColon {
-				return self.Lexem.errorAt(&lsaError{
-					Msg: "Ожидается ':' <Тип>. "})
+			if self.Lexem.Type == ltColon {
+				self.NextLexem()
+				if name, ok = self.ExtractComplexIdent(); !ok {
+					return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип переменной"})
+				}
+				self.AppendItem(ltitDataType)
+				if self.Lexem.Type == ltDot {
+					self.NextLexem()
+					self.AppendItem(ltitPackageName)
+					self.AppendIdent(name)
+					if name, ok = self.ExtractComplexIdent(); !ok {
+						return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип переменной"})
+					}
+					typeNotPresent = false
+				}
+				self.AppendIdent(name)
+				typeNotPresent = false
 			}
-			self.NextLexem()
-
-			E = self.translateComplexIdent()
-			if E != nil {
-				//TODO: Улучшить сообщение об ошибке
-				return self.Lexem.errorAt(&lsaError{
-					Msg: "Ожидается тип переменной. " + E.Error()})
-			}
-
-			S = self.Lexem.LexemAsString()
-			if S == "начало" || S == "begin" || S == "{" {
+			//если после параметра нет ',', значит список кончился, жду 'начало'
+			if self.Lexem.Type != ltComma {
 				break
 			}
+			self.NextLexem()
+			typeNotPresent = false
 		}
+		if typeNotPresent {
+			return self.Lexem.errorAt(&lsaError{Msg: "Не указан тип параметра"})
+		}
+	}
+
+	if self.Lexem.Type == ltSemicolon {
+		self.NextLexem()
 	}
 
 	S = self.Lexem.LexemAsString()

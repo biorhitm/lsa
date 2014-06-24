@@ -79,9 +79,6 @@ func compareLanguageItems(SD TSyntaxDescriptor,
 		}
 	}
 	if result && len(SD.LanguageItems) != len(AStandardItems) {
-		//for _, v := range SD.LanguageItems {
-			//fmt.Printf("%v ", v)
-		//}
 		mes = fmt.Sprintf("Кол-во элементов языка: %d, должно быть: %d",
 			len(SD.LanguageItems), len(AStandardItems))
 		result = false
@@ -246,6 +243,62 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 		{ltitPackageName, ""},
 		{ltitIdent, "пакет"},
 		{ltitIdent, "Тип"},
+	})
+	if !ok {
+		t.Fatal(S)
+	}
+
+	//**************************************************************************
+	S = "функция F(А,Б: Int64): System.bool"
+	//**************************************************************************
+	SD.Init()
+	if SD.Lexem, E = stringToLexems(S); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E = SD.translateFunctionDeclaration(); E != nil {
+		t.Fatal(E.Error())
+	}
+	S, ok = compareLanguageItems(SD, []tLanguageItem{
+		{ltitFunctionDeclaration, ""},
+		{ltitIdent, "F"},
+		{ltitParameters, ""},
+		{ltitIdent, "А"},
+		{ltitIdent, "Б"},
+		{ltitDataType, ""},
+		{ltitIdent, "Int64"},
+		{ltitDataType, ""},
+		{ltitPackageName, ""},
+		{ltitIdent, "System"},
+		{ltitIdent, "bool"},
+	})
+	if !ok {
+		t.Fatal(S)
+	}
+
+
+	//**************************************************************************
+	S = "функция foo(): int; переменные А, Б, В: Символ; начало конец"
+	//**************************************************************************
+	SD.Init()
+	if SD.Lexem, E = stringToLexems(S); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E = SD.translateFunctionDeclaration(); E != nil {
+		t.Fatal(E.Error())
+	}
+	S, ok = compareLanguageItems(SD, []tLanguageItem{
+		{ltitFunctionDeclaration, ""},
+		{ltitIdent, "foo"},
+		{ltitDataType, ""},
+		{ltitIdent, "int"},
+		{ltitLocalVarList, ""},
+		{ltitIdent, "А"},
+		{ltitIdent, "Б"},
+		{ltitIdent, "В"},
+		{ltitDataType, ""},
+		{ltitIdent, "Символ"},
+		{ltitBegin, ""},
+		{ltitEnd, ""},
 	})
 	if !ok {
 		t.Fatal(S)
