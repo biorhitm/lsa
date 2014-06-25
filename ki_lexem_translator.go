@@ -78,12 +78,18 @@ const (
 	kwiUnknown = iota
 	kwiFunction
 	kwiProcedure
+	kwiVariable
+	kwiBegin
+	kwiEnd
 )
 
 var (
 	keywordList = []TKeyword{
 		TKeyword{kwiFunction, "функция"},
 		TKeyword{kwiProcedure, "процедура"},
+		TKeyword{kwiVariable, "переменные"},
+		TKeyword{kwiBegin, "начало"},
+		TKeyword{kwiEnd, "конец"},
 		TKeyword{kwiUnknown, ""},
 	}
 )
@@ -138,9 +144,17 @@ func (self *TSyntaxDescriptor) ExtractComplexIdent() (string, bool) {
 	if self.Lexem.Type != ltIdent {
 		return "", false
 	}
+	kId := self.Lexem.toKeywordId()
+	if kId != kwiUnknown {
+		return "Встретилось зарезервированное слово", false
+	}
 	S := self.Lexem.LexemAsString()
 	self.NextLexem()
 	for self.Lexem.Type == ltIdent {
+		kId := self.Lexem.toKeywordId()
+		if kId != kwiUnknown {
+			return S, true
+		}
 		S += " " + self.Lexem.LexemAsString()
 		self.NextLexem()
 	}
