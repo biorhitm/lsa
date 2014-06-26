@@ -69,7 +69,7 @@ func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
 }
 
 type TKeyword struct {
-	Id   int
+	Id   uint
 	Name string
 }
 
@@ -77,7 +77,6 @@ type TKeyword struct {
 const (
 	kwiUnknown = iota
 	kwiFunction
-	kwiProcedure
 	kwiVariable
 	kwiBegin
 	kwiEnd
@@ -86,10 +85,16 @@ const (
 var (
 	keywordList = []TKeyword{
 		TKeyword{kwiFunction, "функция"},
-		TKeyword{kwiProcedure, "процедура"},
+		TKeyword{kwiFunction, "процедура"},
+		TKeyword{kwiFunction, "function"},
+		TKeyword{kwiFunction, "func"},
+		TKeyword{kwiFunction, "def"},
 		TKeyword{kwiVariable, "переменные"},
+		TKeyword{kwiVariable, "var"},
 		TKeyword{kwiBegin, "начало"},
+		TKeyword{kwiBegin, "begin"},
 		TKeyword{kwiEnd, "конец"},
+		TKeyword{kwiEnd, "end"},
 		TKeyword{kwiUnknown, ""},
 	}
 )
@@ -144,25 +149,26 @@ func (self *TSyntaxDescriptor) ExtractComplexIdent() (string, bool) {
 	if self.Lexem.Type != ltIdent {
 		return "", false
 	}
-	kId := self.Lexem.toKeywordId()
+	S := self.Lexem.LexemAsString()
+	kId := toKeywordId(S)
 	if kId != kwiUnknown {
 		return "Встретилось зарезервированное слово", false
 	}
-	S := self.Lexem.LexemAsString()
 	self.NextLexem()
+	res := S
 	for self.Lexem.Type == ltIdent {
-		kId := self.Lexem.toKeywordId()
+		S := self.Lexem.LexemAsString()
+		kId := toKeywordId(S)
 		if kId != kwiUnknown {
-			return S, true
+			return res, true
 		}
-		S += " " + self.Lexem.LexemAsString()
+		res += " " + S
 		self.NextLexem()
 	}
-	return S, true
+	return res, true
 }
 
-func (self *TLexem) toKeywordId() int {
-	S := (*self).LexemAsString()
+func toKeywordId(S string) uint {
 	for i := 0; i < len(keywordList); i++ {
 		if S == keywordList[i].Name {
 			return keywordList[i].Id
@@ -190,16 +196,16 @@ BNF-правила для объявления функции
 ПЕРЕМЕННАЯ = <ИМЯ ПЕРЕМЕННОЙ> ':' <ТИП>
 ИМЯ ПЕРЕМЕННОЙ = <ИДЕНТИФИКАТОР>
 */
-//TODO: Убрать точку с запятой, я верю что можно обойтись без неё
 func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	var (
 		S, name string
 		ok      bool
+		keywId  uint
 	)
 
 	S = self.Lexem.LexemAsString()
-	//TODO: преобразовать лексему в ключевое слово
-	if !(S == "функция" || S == "function" || S == "func" || S == "def") {
+	keywId = toKeywordId(S)
+	if keywId != kwiFunction {
 		return self.Lexem.errorAt(&lsaError{Msg: "Can't translateFunctionDeclaration, type not function."})
 	}
 
@@ -301,7 +307,8 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 
 	// читаю список локальных переменных
 	S = self.Lexem.LexemAsString()
-	if S == "переменные" || S == "var" {
+	keywId = toKeywordId(S)
+	if keywId == kwiVariable {
 		self.AppendItem(ltitLocalVarList)
 		self.NextLexem()
 
@@ -342,12 +349,9 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 		}
 	}
 
-	if self.Lexem.Type == ltSemicolon {
-		self.NextLexem()
-	}
-
 	S = self.Lexem.LexemAsString()
-	if S == "начало" || S == "begin" || S == "{" {
+	keywId = toKeywordId(S)
+	if keywId == kwiBegin || self.Lexem.Type == ltOpenShapeBracket {
 		self.AppendItem(ltitBegin)
 		self.NextLexem()
 	}
@@ -358,14 +362,16 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 			break
 		}
 		S = self.Lexem.LexemAsString()
-		if S == "конец" || S == "end" || S == "}" {
+		keywId = toKeywordId(S)
+		if keywId == kwiEnd || self.Lexem.Type == ltCloseShapeBracket {
 			break
 		}
 		self.NextLexem()
 	}
 
 	S = self.Lexem.LexemAsString()
-	if S == "конец" || S == "end" || S == "}" {
+	keywId = toKeywordId(S)
+	if keywId == kwiEnd || self.Lexem.Type == ltCloseShapeBracket {
 		self.AppendItem(ltitEnd)
 		self.NextLexem()
 	}
@@ -631,8 +637,9 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 		switch ALexem.Type {
 		case ltIdent:
 			{
-				keywordId := (*ALexem).toKeywordId()
-				if keywordId == kwiFunction {
+				S := (*ALexem).LexemAsString()
+				kId := toKeywordId(S)
+				if kId == kwiFunction {
 					syntaxDescriptor.translateFunctionDeclaration()
 				} else {
 					ALexem = ALexem.Next

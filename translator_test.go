@@ -210,97 +210,86 @@ func Test_addUnique(t *testing.T) {
 	}
 }
 
-func TestTranslateFunctionDeclaration(t *testing.T) {
+func stringIsFunctionDeclaration(AText string, AItems []tLanguageItem) (string,
+	bool) {
 	var (
 		SD TSyntaxDescriptor
 		E  error
 		S  string
 		ok bool
 	)
-
-	//**************************************************************************
-	S = "функция Имя класса.Имя функции(А: АТип, Б,В,Г: пакет.Тип)"
-	//**************************************************************************
-	if SD.Lexem, E = stringToLexems(S); E != nil {
-		t.Fatal(E.Error())
+	SD.Init()
+	if SD.Lexem, E = stringToLexems(AText); E != nil {
+		return E.Error(), false
 	}
 	if E = SD.translateFunctionDeclaration(); E != nil {
-		t.Fatal(E.Error())
+		return E.Error(), false
 	}
-	S, ok = compareLanguageItems(SD, []tLanguageItem{
-		{ltitFunctionDeclaration, ""},
-		{ltitClassMember, ""},
-		{ltitIdent, "Имя класса"},
-		{ltitIdent, "Имя функции"},
-		{ltitParameters, ""},
-		{ltitIdent, "А"},
-		{ltitDataType, ""},
-		{ltitIdent, "АТип"},
-		{ltitIdent, "Б"},
-		{ltitIdent, "В"},
-		{ltitIdent, "Г"},
-		{ltitDataType, ""},
-		{ltitPackageName, ""},
-		{ltitIdent, "пакет"},
-		{ltitIdent, "Тип"},
-	})
-	if !ok {
+
+	if S, ok = compareLanguageItems(SD, AItems); !ok {
+		return S, false
+	}
+	return "", true
+}
+
+func TestTranslateFunctionDeclaration(t *testing.T) {
+	var (
+		S  string
+		ok bool
+	)
+
+	if S, ok = stringIsFunctionDeclaration(
+		"функция Имя класса.Имя функции(А: Новый Тип, Б,В,Г: пакет.Тип)",
+		[]tLanguageItem{
+			{ltitFunctionDeclaration, ""},
+			{ltitClassMember, ""}, {ltitIdent, "Имя класса"},
+			{ltitIdent, "Имя функции"},
+			{ltitParameters, ""}, {ltitIdent, "А"}, {ltitDataType, ""},
+			{ltitIdent, "Новый Тип"},
+			{ltitIdent, "Б"}, {ltitIdent, "В"}, {ltitIdent, "Г"},
+			{ltitDataType, ""},
+			{ltitPackageName, ""}, {ltitIdent, "пакет"},
+			{ltitIdent, "Тип"},
+		}); !ok {
 		t.Fatal(S)
 	}
 
-	//**************************************************************************
-	S = "функция F(А,Б: Int64): System.bool"
-	//**************************************************************************
-	SD.Init()
-	if SD.Lexem, E = stringToLexems(S); E != nil {
-		t.Fatal(E.Error())
-	}
-	if E = SD.translateFunctionDeclaration(); E != nil {
-		t.Fatal(E.Error())
-	}
-	S, ok = compareLanguageItems(SD, []tLanguageItem{
-		{ltitFunctionDeclaration, ""},
-		{ltitIdent, "F"},
-		{ltitParameters, ""},
-		{ltitIdent, "А"},
-		{ltitIdent, "Б"},
-		{ltitDataType, ""},
-		{ltitIdent, "Int64"},
-		{ltitDataType, ""},
-		{ltitPackageName, ""},
-		{ltitIdent, "System"},
-		{ltitIdent, "bool"},
-	})
-	if !ok {
+	if S, ok = stringIsFunctionDeclaration(
+		"function F(А,Б: Int64): System.bool",
+		[]tLanguageItem{
+			{ltitFunctionDeclaration, ""}, {ltitIdent, "F"},
+			{ltitParameters, ""}, {ltitIdent, "А"}, {ltitIdent, "Б"},
+			{ltitDataType, ""}, {ltitIdent, "Int64"},
+			{ltitDataType, ""},
+			{ltitPackageName, ""}, {ltitIdent, "System"},
+			{ltitIdent, "bool"},
+		}); !ok {
 		t.Fatal(S)
 	}
 
+	if S, ok = stringIsFunctionDeclaration(
+		"func foo(): int переменные А, Б, В: Unicode Символ начало конец",
+		[]tLanguageItem{
+			{ltitFunctionDeclaration, ""}, {ltitIdent, "foo"},
+			{ltitDataType, ""}, {ltitIdent, "int"},
+			{ltitLocalVarList, ""},
+			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
+			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
+			{ltitBegin, ""}, {ltitEnd, ""},
+		}); !ok {
+		t.Fatal(S)
+	}
 
-	//**************************************************************************
-	S = "функция foo(): int переменные А, Б, В: Символ начало конец"
-	//**************************************************************************
-	SD.Init()
-	if SD.Lexem, E = stringToLexems(S); E != nil {
-		t.Fatal(E.Error())
-	}
-	if E = SD.translateFunctionDeclaration(); E != nil {
-		t.Fatal(E.Error())
-	}
-	S, ok = compareLanguageItems(SD, []tLanguageItem{
-		{ltitFunctionDeclaration, ""},
-		{ltitIdent, "foo"},
-		{ltitDataType, ""},
-		{ltitIdent, "int"},
-		{ltitLocalVarList, ""},
-		{ltitIdent, "А"},
-		{ltitIdent, "Б"},
-		{ltitIdent, "В"},
-		{ltitDataType, ""},
-		{ltitIdent, "Символ"},
-		{ltitBegin, ""},
-		{ltitEnd, ""},
-	})
-	if !ok {
+	if S, ok = stringIsFunctionDeclaration(
+		"def foo(): Тип функции foo var А, Б, В: Unicode Символ {}",
+		[]tLanguageItem{
+			{ltitFunctionDeclaration, ""}, {ltitIdent, "foo"},
+			{ltitDataType, ""}, {ltitIdent, "Тип функции foo"},
+			{ltitLocalVarList, ""},
+			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
+			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
+			{ltitBegin, ""}, {ltitEnd, ""},
+		}); !ok {
 		t.Fatal(S)
 	}
 }
