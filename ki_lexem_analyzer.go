@@ -12,7 +12,7 @@ type TLexemType uint
 
 // TLexemType
 const (
-	ltUnknown = iota
+	ltUnknown TLexemType = iota
 	ltEOF
 	ltNumber // 12
 	ltString // "test"
@@ -425,6 +425,19 @@ func (R *TReader) BuildLexems() (PLexem, error) {
 		case C == 0x0A:
 			{
 				curLexem, err = R.createNewLexem(curLexem, ltEOL)
+				for {
+					C, err := R.readRune()
+					if err != nil {
+						if err == io.EOF {
+							break
+						}
+						return nil, err
+					}
+					if C > ' ' {
+						R.unread()
+						break
+					}
+				}
 			}
 
 		default:

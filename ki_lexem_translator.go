@@ -145,6 +145,9 @@ func (self *TSyntaxDescriptor) NextLexem() {
 		self.Lexem = self.Lexem.Next
 	}
 }
+
+//TODO: должен возвращать ошибку 'встретилось зарезервированное слово' с
+// кодом слова
 func (self *TSyntaxDescriptor) ExtractComplexIdent() (string, bool) {
 	if self.Lexem.Type != ltIdent {
 		return "", false
