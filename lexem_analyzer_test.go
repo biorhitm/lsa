@@ -317,7 +317,7 @@ func TestStringParser(t *testing.T) {
 }
 
 func TestCharParser(t *testing.T) {
-	var S string = "\tБ = '$'\r\n"
+	var S string = "\tБ = \n\n\n\n'$'\r\n"
 	buf, _ := stringToUTF8EncodedByteArray(S)
 
 	R := TReader{
@@ -351,6 +351,11 @@ func TestCharParser(t *testing.T) {
 	if plexem == nil {
 		t.Fatal("Мало лексем")
 	}
+	if plexem.Type != ltEOL {
+		t.Errorf("Неправильный тип: %d", plexem.Type)
+	}
+
+	plexem = plexem.Next
 	if plexem.Type != ltChar {
 		t.Errorf("Неправильный тип: %d", plexem.Type)
 	}
