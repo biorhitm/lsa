@@ -27,7 +27,7 @@ const (
 	ltitAND
 	ltitXOR
 	ltitNOT
-	ltitFunctionDeclaration
+	ltitFunction
 	ltitLocalVarList
 	ltitDataType
 	ltitBegin
@@ -212,7 +212,7 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 		return self.Lexem.errorAt(&lsaError{Msg: "Can't translateFunctionDeclaration, type not function."})
 	}
 
-	self.AppendItem(ltitFunctionDeclaration)
+	self.AppendItem(ltitFunction)
 	self.NextLexem()
 
 	// [<ИМЯ КЛАССА> '.']<ИДЕНТИФИКАТОР> '('

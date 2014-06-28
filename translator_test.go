@@ -241,7 +241,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	if S, ok = stringIsFunctionDeclaration(
 		"функция Имя класса.Имя функции(А: Новый Тип, Б,В,Г: пакет.Тип)",
 		[]tLanguageItem{
-			{ltitFunctionDeclaration, ""},
+			{ltitFunction, ""},
 			{ltitClassMember, ""}, {ltitIdent, "Имя класса"},
 			{ltitIdent, "Имя функции"},
 			{ltitParameters, ""}, {ltitIdent, "А"}, {ltitDataType, ""},
@@ -257,7 +257,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	if S, ok = stringIsFunctionDeclaration(
 		"function F(А,Б: Int64): System.bool",
 		[]tLanguageItem{
-			{ltitFunctionDeclaration, ""}, {ltitIdent, "F"},
+			{ltitFunction, ""}, {ltitIdent, "F"},
 			{ltitParameters, ""}, {ltitIdent, "А"}, {ltitIdent, "Б"},
 			{ltitDataType, ""}, {ltitIdent, "Int64"},
 			{ltitDataType, ""},
@@ -270,7 +270,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	if S, ok = stringIsFunctionDeclaration(
 		"func foo(): int переменные А, Б, В: Unicode Символ начало конец",
 		[]tLanguageItem{
-			{ltitFunctionDeclaration, ""}, {ltitIdent, "foo"},
+			{ltitFunction, ""}, {ltitIdent, "foo"},
 			{ltitDataType, ""}, {ltitIdent, "int"},
 			{ltitLocalVarList, ""},
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
@@ -283,7 +283,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	if S, ok = stringIsFunctionDeclaration(
 		"def foo(): Тип функции foo var А, Б, В: Unicode Символ {}",
 		[]tLanguageItem{
-			{ltitFunctionDeclaration, ""}, {ltitIdent, "foo"},
+			{ltitFunction, ""}, {ltitIdent, "foo"},
 			{ltitDataType, ""}, {ltitIdent, "Тип функции foo"},
 			{ltitLocalVarList, ""},
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
