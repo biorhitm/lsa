@@ -28,7 +28,7 @@ const (
 	ltitXOR
 	ltitNOT
 	ltitFunction
-	ltitLocalVarList
+	ltitVarList
 	ltitDataType
 	ltitBegin
 	ltitEnd
@@ -312,7 +312,7 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	S = self.Lexem.LexemAsString()
 	keywId = toKeywordId(S)
 	if keywId == kwiVariable {
-		self.AppendItem(ltitLocalVarList)
+		self.AppendItem(ltitVarList)
 		self.NextLexem()
 
 		typeNotPresent := true

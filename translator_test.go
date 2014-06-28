@@ -272,7 +272,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 		[]tLanguageItem{
 			{ltitFunction, ""}, {ltitIdent, "foo"},
 			{ltitDataType, ""}, {ltitIdent, "int"},
-			{ltitLocalVarList, ""},
+			{ltitVarList, ""},
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
 			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
 			{ltitBegin, ""}, {ltitEnd, ""},
@@ -285,7 +285,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 		[]tLanguageItem{
 			{ltitFunction, ""}, {ltitIdent, "foo"},
 			{ltitDataType, ""}, {ltitIdent, "Тип функции foo"},
-			{ltitLocalVarList, ""},
+			{ltitVarList, ""},
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
 			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
 			{ltitBegin, ""}, {ltitEnd, ""},
