@@ -374,10 +374,6 @@ func (R *TReader) createNewLexem(parent PLexem, _type TLexemType) (PLexem, error
 	return L, nil
 }
 
-/* TODO: 1. идущие подряд символы переводы строк, интерпретировать как один
-         если следующая строка состоит только из пробельных символов, то
-		её тоже не включать в список лексем
-*/
 func (R *TReader) BuildLexems() (PLexem, error) {
 	var curLexem, firstLexem PLexem
 
@@ -424,9 +420,9 @@ func (R *TReader) BuildLexems() (PLexem, error) {
 
 		case C == 0x0A:
 			{
-				curLexem, err = R.createNewLexem(curLexem, ltEOL)
+				L, _ := R.createNewLexem(curLexem, ltEOL)
 				for {
-					C, err := R.readRune()
+					C, err = R.readRune()
 					if err != nil {
 						if err == io.EOF {
 							break
@@ -434,6 +430,7 @@ func (R *TReader) BuildLexems() (PLexem, error) {
 						return nil, err
 					}
 					if C > ' ' {
+						curLexem = L
 						R.unread()
 						break
 					}

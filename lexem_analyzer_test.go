@@ -303,14 +303,6 @@ func TestStringParser(t *testing.T) {
 	if plexem == nil {
 		t.Fatal("Мало лексем")
 	}
-	if plexem.Type != ltEOL {
-		t.Errorf("Неправильный тип: %d", plexem.Type)
-	}
-
-	plexem = plexem.Next
-	if plexem == nil {
-		t.Fatal("Мало лексем")
-	}
 	if plexem.Type != ltEOF {
 		t.Errorf("Неправильный тип: %d", plexem.Type)
 	}
@@ -362,14 +354,6 @@ func TestCharParser(t *testing.T) {
 	S = (*plexem).LexemAsString()
 	if S != "$" {
 		t.Errorf("Лексема содержит неправильный текст: \"%s\"", S)
-	}
-
-	plexem = plexem.Next
-	if plexem == nil {
-		t.Fatal("Мало лексем")
-	}
-	if plexem.Type != ltEOL {
-		t.Errorf("Неправильный тип: %d", plexem.Type)
 	}
 
 	plexem = plexem.Next
