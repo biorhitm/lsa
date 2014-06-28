@@ -191,25 +191,30 @@ BNF-правила для прототипа функции
 func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 	var (
 		name string
-		ok      bool
+		ok   bool
 	)
 
 	//[<ПАРАМЕТРЫ>]
 	if self.Lexem.Type == ltOpenParenthesis {
-		self.AppendItem(ltitParameters)
 		self.NextLexem()
 
+		if self.Lexem.Type != ltCloseParenthesis {
+			self.AppendItem(ltitParameters)
+		}
+
 		//<ТИПИЗИРОВАННЫЕ ПАРАМЕТРЫ> {',' <ТИПИЗИРОВАННЫЕ ПАРАМЕТРЫ>} ')'
-		for {
+		for self.Lexem.Type != ltCloseParenthesis {
 			//СПИСОК ИМЁН = <ИМЯ> {',' <ИМЯ>}
 			for {
 				name, ok = self.ExtractComplexIdent()
-				if ok {
-					self.AppendIdent(name)
+				if !ok {
+					return self.Lexem.errorAt(&lsaError{Msg: "Отсутствует имя параметра"})
 				}
-				if !ok || self.Lexem.Type != ltComma {
+				self.AppendIdent(name)
+				if self.Lexem.Type != ltComma {
 					break
 				}
+				self.NextLexem()
 			}
 
 			if self.Lexem.Type != ltColon {
@@ -314,7 +319,7 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 
 	E := self.translateFunctionPrototype()
 	if E != nil {
-		return self.Lexem.errorAt(&lsaError{Msg: E.Error()})
+		return E
 	}
 
 	if self.Lexem.Type == ltSemicolon {
@@ -370,26 +375,26 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	if keywId == kwiBegin || self.Lexem.Type == ltOpenShapeBracket {
 		self.AppendItem(ltitBegin)
 		self.NextLexem()
-	}
 
-	//читаю тело функции
-	for {
-		if self.Lexem.Type == ltEOF {
-			break
+		//читаю тело функции
+		for {
+			if self.Lexem.Type == ltEOF {
+				break
+			}
+			S = self.Lexem.LexemAsString()
+			keywId = toKeywordId(S)
+			if keywId == kwiEnd || self.Lexem.Type == ltCloseShapeBracket {
+				break
+			}
+			self.NextLexem()
 		}
+
 		S = self.Lexem.LexemAsString()
 		keywId = toKeywordId(S)
 		if keywId == kwiEnd || self.Lexem.Type == ltCloseShapeBracket {
-			break
+			self.AppendItem(ltitEnd)
+			self.NextLexem()
 		}
-		self.NextLexem()
-	}
-
-	S = self.Lexem.LexemAsString()
-	keywId = toKeywordId(S)
-	if keywId == kwiEnd || self.Lexem.Type == ltCloseShapeBracket {
-		self.AppendItem(ltitEnd)
-		self.NextLexem()
 	}
 
 	return nil
@@ -648,8 +653,8 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 	startLexem := ALexem
 
 	var (
-		nextLexem           PLexem = nil
-		E                   error  = nil
+		nextLexem PLexem = nil
+		E         error  = nil
 	)
 
 	for ALexem != nil {

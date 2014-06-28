@@ -31,7 +31,7 @@ func compareLanguageItems(SD TSyntaxDescriptor,
 
 	for itemNo, _ := range SD.LanguageItems {
 		T := SD.LanguageItems[itemNo].Type
-		if itemNo >= len(AStandardItems) {
+		if result && itemNo >= len(AStandardItems) {
 			mes = fmt.Sprintf("Тип элемента: %d, ожидается конец, Лексема № %d",
 				T, itemNo)
 			result = false
@@ -75,7 +75,10 @@ func compareLanguageItems(SD TSyntaxDescriptor,
 				result = false
 			}
 		} else {
-			fmt.Printf("[%d]: '%s' ", itemNo, S)
+			if S != "" {
+				S = "'" + S + "'"
+			}
+			fmt.Printf("[%d]: %s ", itemNo, S)
 		}
 	}
 	if result && len(SD.LanguageItems) != len(AStandardItems) {
@@ -281,7 +284,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	}
 
 	if S, ok = stringIsFunctionDeclaration(
-		"def foo(): Тип функции foo var А, Б, В: Unicode Символ {}",
+		"def foo: Тип функции foo var А, Б, В: Unicode Символ {}",
 		[]tLanguageItem{
 			{ltitFunction, ""}, {ltitIdent, "foo"},
 			{ltitDataType, ""}, {ltitIdent, "Тип функции foo"},
