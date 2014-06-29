@@ -35,6 +35,8 @@ const (
 	ltitClassMember
 	ltitParameters
 	ltitPackageName
+	ltitIf
+	ltitElse
 )
 
 type TLanguageItem struct {
@@ -86,6 +88,8 @@ const (
 	kwiVariable
 	kwiBegin
 	kwiEnd
+	kwiIf
+	kwiElse
 )
 
 var (
@@ -101,6 +105,10 @@ var (
 		TKeyword{kwiBegin, "begin"},
 		TKeyword{kwiEnd, "конец"},
 		TKeyword{kwiEnd, "end"},
+		TKeyword{kwiIf, "если"},
+		TKeyword{kwiIf, "if"},
+		TKeyword{kwiElse, "иначе"},
+		TKeyword{kwiElse, "else"},
 		TKeyword{kwiUnknown, ""},
 	}
 )
@@ -624,6 +632,16 @@ func (self *TSyntaxDescriptor) end() {
 	self.NextLexem()
 }
 
+/*
+BNF-определения для оператора 'если'
+<ЕСЛИ> <НАЧАЛО> [<ОПЕРАТОРЫ>] <КОНЕЦ> [<ИНАЧЕ> <НАЧАЛО> [<ОПЕРАТОРЫ>] <КОНЕЦ>]
+ЕСЛИ = 'если' | 'if'
+ИНАЧЕ = 'иначе' | 'else'
+*/
+func (self *TSyntaxDescriptor) translateIfStatement() error {
+	return self.Lexem.errorAt(ESyntaxError)
+}
+
 func (self *TSyntaxDescriptor) translateIdent() error {
 	S := self.Lexem.LexemAsString()
 	kId := toKeywordId(S)
@@ -643,6 +661,13 @@ func (self *TSyntaxDescriptor) translateIdent() error {
 	case kwiEnd:
 		{
 			self.end()
+		}
+
+	case kwiIf:
+		{
+			if E := self.translateIfStatement(); E != nil {
+				return E
+			}
 		}
 
 	default:
