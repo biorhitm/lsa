@@ -47,7 +47,12 @@ type TLanguageItem struct {
 type TStringArray []string
 
 type TSyntaxDescriptor struct {
-	Lexem         *TLexem
+	Lexem *TLexem
+	// лексема к которой надо будет вернуться, чтобы продолжить перевод
+	// например, если название переменной состоит из нескольких слов, то
+	// после нахождения знака =, надо будет вернуться к первому слову
+	// переменной, чтобы записать её полное название
+	StartLexem    *TLexem
 	LanguageItems []TLanguageItem
 	Parenthesis   int
 	BeginCount    int
@@ -607,12 +612,33 @@ Loop:
 	return nil
 }
 
+func (self *TSyntaxDescriptor) translateIdent() error {
+	S := self.Lexem.LexemAsString()
+	kId := toKeywordId(S)
+	switch kId {
+	case kwiFunction:
+		{
+			if E := self.translateFunctionDeclaration(); E != nil {
+				return E
+			}
+		}
+
+	default:
+		{
+			self.NextLexem()
+		}
+	}
+
+	return nil
+}
+
 /*
  Переводит текст в лексемах в массив элементов языка
 */
 func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 	sd := TSyntaxDescriptor{
 		Lexem:         ALexem,
+		StartLexem:    ALexem,
 		LanguageItems: make([]TLanguageItem, 0, 1000),
 		Parenthesis:   0,
 		BeginCount:    0,
@@ -621,54 +647,39 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 		StrStrings:    make([]string, 0, 1024),
 	}
 
-	// лексема к которой надо будет вернуться, чтобы продолжить перевод
-	// например, если название переменной состоит из нескольких слов, то
-	// после нахождения знака =, надо будет вернуться к первому слову
-	// переменной, чтобы записать её полное название
-	startLexem := ALexem
-
 	var (
-		nextLexem PLexem = nil
-		E         error  = nil
+		E error = nil
 	)
 
-	for ALexem != nil {
-		switch ALexem.Type {
+	for sd.Lexem != nil && sd.Lexem.Type != ltEOF {
+		switch sd.Lexem.Type {
 		case ltIdent:
 			{
-				S := (*ALexem).LexemAsString()
-				kId := toKeywordId(S)
-				if kId == kwiFunction {
-					sd.Lexem = ALexem
-					if E = sd.translateFunctionDeclaration(); E != nil {
-						return TSyntaxDescriptor{}, E
-					}
-				} else {
-					ALexem = ALexem.Next
+				if E = sd.translateIdent(); E != nil {
+					return TSyntaxDescriptor{}, E
 				}
 			}
 
 		case ltEqualSign:
 			{
-				sd.Lexem = startLexem
+				sd.Lexem = sd.StartLexem
 				E = sd.translateAssignment()
 				if E != nil {
 					return TSyntaxDescriptor{}, E
 				}
-				ALexem = nextLexem
 			}
 
 		case ltEOL:
 			{
-				ALexem = ALexem.Next
+				sd.NextLexem()
 			}
 
 		default:
-			if ALexem.Size > 0 {
+			if sd.Lexem.Size > 0 {
 				fmt.Printf("Лехема: %d size: %d %s ",
-					ALexem.Type, ALexem.Size, (*ALexem).LexemAsString())
+					sd.Lexem.Type, sd.Lexem.Size, sd.Lexem.LexemAsString())
 			}
-			ALexem = ALexem.Next
+			sd.NextLexem()
 		}
 	}
 
