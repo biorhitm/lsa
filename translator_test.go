@@ -294,3 +294,42 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 		t.Fatal(S)
 	}
 }
+
+func stringIsValidCode(AText string, AItems []tLanguageItem) (string, bool) {
+	var (
+		lexems *TLexem
+		sd TSyntaxDescriptor
+		E  error
+	)
+	if lexems, E = stringToLexems(AText); E != nil {
+		return E.Error(), false
+	}
+	if sd, E = TranslateCode(lexems); E != nil {
+		return E.Error(), false
+	}
+
+	if S, ok := compareLanguageItems(sd, AItems); !ok {
+		return S, false
+	}
+	return "", true
+}
+
+func TestTranslateCode(t *testing.T) {
+	var (
+		S    string
+		ok     bool
+	)
+
+	if S, ok = stringIsValidCode(
+		"def foo: Тип функции foo var А, Б, В: Unicode Символ {}",
+		[]tLanguageItem{
+			{ltitFunction, ""}, {ltitIdent, "foo"},
+			{ltitDataType, ""}, {ltitIdent, "Тип функции foo"},
+			{ltitVarList, ""},
+			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
+			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
+			{ltitBegin, ""}, {ltitEnd, ""},
+		}); !ok {
+		t.Fatal(S)
+	}
+}

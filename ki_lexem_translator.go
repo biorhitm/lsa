@@ -612,6 +612,18 @@ Loop:
 	return nil
 }
 
+func (self *TSyntaxDescriptor) begin() {
+	self.BeginCount++
+	self.AppendItem(ltitBegin)
+	self.NextLexem()
+}
+
+func (self *TSyntaxDescriptor) end() {
+	self.BeginCount--
+	self.AppendItem(ltitEnd)
+	self.NextLexem()
+}
+
 func (self *TSyntaxDescriptor) translateIdent() error {
 	S := self.Lexem.LexemAsString()
 	kId := toKeywordId(S)
@@ -621,6 +633,16 @@ func (self *TSyntaxDescriptor) translateIdent() error {
 			if E := self.translateFunctionDeclaration(); E != nil {
 				return E
 			}
+		}
+
+	case kwiBegin:
+		{
+			self.begin()
+		}
+
+	case kwiEnd:
+		{
+			self.end()
 		}
 
 	default:
@@ -674,6 +696,16 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 				sd.NextLexem()
 			}
 
+		case ltOpenShapeBracket:
+			{
+				sd.begin()
+			}
+
+		case ltCloseShapeBracket:
+			{
+				sd.end()
+			}
+
 		default:
 			if sd.Lexem.Size > 0 {
 				fmt.Printf("Лехема: %d size: %d %s ",
@@ -683,6 +715,5 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 		}
 	}
 
-	fmt.Printf("----------EOF-----------\n")
 	return sd, nil
 }
