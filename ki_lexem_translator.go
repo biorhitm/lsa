@@ -696,12 +696,12 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 				sd.NextLexem()
 			}
 
-		case ltOpenShapeBracket:
+		case ltLBrace:
 			{
 				sd.begin()
 			}
 
-		case ltCloseShapeBracket:
+		case ltRBrace:
 			{
 				sd.end()
 			}

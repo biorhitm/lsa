@@ -46,9 +46,9 @@ const (
 	ltCloseBracket      = ']'
 	ltInvolution        = '^'
 	ltBackQuote         = '`'
-	ltOpenShapeBracket  = '{'
+	ltLBrace            = '{'
 	ltVerticalLine      = '|'
-	ltCloseShapeBracket = '}'
+	ltRBrace            = '}'
 	ltTilde             = '~'
 )
 
