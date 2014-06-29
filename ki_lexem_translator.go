@@ -50,6 +50,7 @@ type TSyntaxDescriptor struct {
 	Lexem         *TLexem
 	LanguageItems []TLanguageItem
 	Parenthesis   int
+	BeginCount    int
 	StrNumbers    TStringArray
 	StrIdents     TStringArray
 	StrStrings    TStringArray
@@ -370,33 +371,6 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 		}
 	}
 
-	S = self.Lexem.LexemAsString()
-	keywId = toKeywordId(S)
-	if keywId == kwiBegin || self.Lexem.Type == ltOpenShapeBracket {
-		self.AppendItem(ltitBegin)
-		self.NextLexem()
-
-		//читаю тело функции
-		for {
-			if self.Lexem.Type == ltEOF {
-				break
-			}
-			S = self.Lexem.LexemAsString()
-			keywId = toKeywordId(S)
-			if keywId == kwiEnd || self.Lexem.Type == ltCloseShapeBracket {
-				break
-			}
-			self.NextLexem()
-		}
-
-		S = self.Lexem.LexemAsString()
-		keywId = toKeywordId(S)
-		if keywId == kwiEnd || self.Lexem.Type == ltCloseShapeBracket {
-			self.AppendItem(ltitEnd)
-			self.NextLexem()
-		}
-	}
-
 	return nil
 }
 
@@ -637,10 +611,11 @@ Loop:
  Переводит текст в лексемах в массив элементов языка
 */
 func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
-	syntaxDescriptor := TSyntaxDescriptor{
+	sd := TSyntaxDescriptor{
 		Lexem:         ALexem,
 		LanguageItems: make([]TLanguageItem, 0, 1000),
 		Parenthesis:   0,
+		BeginCount:    0,
 		StrNumbers:    make([]string, 0, 1024),
 		StrIdents:     make([]string, 0, 1024),
 		StrStrings:    make([]string, 0, 1024),
@@ -664,7 +639,10 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 				S := (*ALexem).LexemAsString()
 				kId := toKeywordId(S)
 				if kId == kwiFunction {
-					syntaxDescriptor.translateFunctionDeclaration()
+					sd.Lexem = ALexem
+					if E = sd.translateFunctionDeclaration(); E != nil {
+						return TSyntaxDescriptor{}, E
+					}
 				} else {
 					ALexem = ALexem.Next
 				}
@@ -672,8 +650,8 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 
 		case ltEqualSign:
 			{
-				syntaxDescriptor.Lexem = startLexem
-				E = syntaxDescriptor.translateAssignment()
+				sd.Lexem = startLexem
+				E = sd.translateAssignment()
 				if E != nil {
 					return TSyntaxDescriptor{}, E
 				}
@@ -695,5 +673,5 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 	}
 
 	fmt.Printf("----------EOF-----------\n")
-	return syntaxDescriptor, nil
+	return sd, nil
 }

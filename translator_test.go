@@ -242,7 +242,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	)
 
 	if S, ok = stringIsFunctionDeclaration(
-		"функция Имя класса.Имя функции(А: Новый Тип, Б,В,Г: пакет.Тип)",
+		"функция Имя класса.Имя функции(А: Новый Тип, Б,В,Г: пакет.Тип) начало",
 		[]tLanguageItem{
 			{ltitFunction, ""},
 			{ltitClassMember, ""}, {ltitIdent, "Имя класса"},
@@ -258,7 +258,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	}
 
 	if S, ok = stringIsFunctionDeclaration(
-		"function F(А,Б: Int64): System.bool",
+		"function F(А,Б: Int64): System.bool начало",
 		[]tLanguageItem{
 			{ltitFunction, ""}, {ltitIdent, "F"},
 			{ltitParameters, ""}, {ltitIdent, "А"}, {ltitIdent, "Б"},
@@ -278,7 +278,6 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 			{ltitVarList, ""},
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
 			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
-			{ltitBegin, ""}, {ltitEnd, ""},
 		}); !ok {
 		t.Fatal(S)
 	}
@@ -291,7 +290,6 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 			{ltitVarList, ""},
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
 			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
-			{ltitBegin, ""}, {ltitEnd, ""},
 		}); !ok {
 		t.Fatal(S)
 	}
