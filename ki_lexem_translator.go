@@ -27,6 +27,7 @@ const (
 	ltitAND
 	ltitXOR
 	ltitNOT
+	ltitEqual
 	ltitFunction
 	ltitVarList
 	ltitDataType
@@ -120,6 +121,7 @@ var (
 	EExpectedArgument   = &lsaError{Msg: "Ожидается операнд"}
 	ETooMuchCloseRB     = &lsaError{Msg: "Слишком много )"}
 	ETooMuchOpenRB      = &lsaError{Msg: "Слишком много ("}
+	EExpectedCloseOper  = &lsaError{Msg: "Отсутствует 'конец'"}
 )
 
 func (self *TSyntaxDescriptor) Init() {
@@ -464,57 +466,40 @@ func (self *TSyntaxDescriptor) translateString() error {
 ВЫЗОВ ФУНКЦИИ = <СЛОЖНЫЙ ИДЕНТИФИКАТОР> '(' [<ПАРАМЕТРЫ>] ')'
 ПАРАМЕТРЫ = [<ВЫРАЖЕНИЕ>] {',' [<ВЫРАЖЕНИЕ>]}
 */
-func (Self *TSyntaxDescriptor) translateArgument() error {
-	var item TLanguageItem
+func (Self *TSyntaxDescriptor) translateArgument() (E error) {
+	E = nil
 	var S string
 
 	// пропускаю необязательные открывающие скобки
 	for Self.Lexem.Type == ltOpenParenthesis {
-		Self.Lexem = Self.Lexem.Next
-		item = TLanguageItem{Type: ltitOpenParenthesis}
-		Self.LanguageItems = append(Self.LanguageItems, item)
+		Self.NextLexem()
+		Self.AppendItem(ltitOpenParenthesis)
 		Self.Parenthesis++
 	}
 
 	switch Self.Lexem.Type {
 	case ltNumber:
-		{
-			item = TLanguageItem{Type: ltitNumber,
-				Index: uint(len(Self.StrNumbers))}
-			Self.LanguageItems = append(Self.LanguageItems, item)
-			S = Self.Lexem.LexemAsString()
-			Self.StrNumbers = append(Self.StrNumbers, S)
-			Self.Lexem = Self.Lexem.Next
-		}
+		S = Self.Lexem.LexemAsString()
+		Self.AppendNumber(S)
+		Self.NextLexem()
 
 	case ltIdent:
-		{
-			if E := Self.translateComplexIdent(); E != nil {
-				return Self.Lexem.errorAt(ESyntaxError)
-			}
-		}
+		E = Self.translateComplexIdent()
 
 	case ltString:
-		{
-			if E := Self.translateString(); E != nil {
-				return Self.Lexem.errorAt(ESyntaxError)
-			}
-		}
+		E = Self.translateString()
 
 	default:
-		{
-			return Self.Lexem.errorAt(EExpectedArgument)
-		}
+		return Self.Lexem.errorAt(EExpectedArgument)
 	}
 
 	// пропускаю необязательные закрывающие скобки
 	for Self.Lexem.Type == ltCloseParenthesis {
-		Self.Lexem = Self.Lexem.Next
-		item = TLanguageItem{Type: ltitCloseParenthesis}
-		Self.LanguageItems = append(Self.LanguageItems, item)
+		Self.NextLexem()
+		Self.AppendItem(ltitCloseParenthesis)
 		Self.Parenthesis--
 	}
-	return nil
+	return
 }
 
 func (self *TSyntaxDescriptor) translateOperation() error {
@@ -531,13 +516,50 @@ func (self *TSyntaxDescriptor) translateOperation() error {
 
 	case ltSlash:
 		lit = ltitMathDiv
+
+	case ltEqualSign:
+		lit = ltitEqual
+
+	default:
+		return self.Lexem.errorAt(ESyntaxError)
 	}
 
-	item := TLanguageItem{Type: lit}
-	self.LanguageItems = append(self.LanguageItems, item)
-	self.Lexem = self.Lexem.Next
+	self.AppendItem(lit)
+	self.NextLexem()
 	return nil
 
+}
+
+func (self *TSyntaxDescriptor) translateExpression() (E error) {
+	self.Parenthesis = 0
+
+	// обрабатываю аргумент
+	E = self.translateArgument()
+
+	// [<ОПЕРАЦИЯ><АРГУМЕНТ>]
+Loop:
+	for E == nil {
+		switch self.Lexem.Type {
+		//TODO: вынести проверку операции в функцию и добавить проверку
+		//      остальных операций: > < >= <= >> << ! ~
+		case ltPlus, ltMinus, ltStar, ltSlash, ltPercent, ltEqualSign:
+			if E = self.translateOperation(); E == nil {
+				E = self.translateArgument()
+			}
+
+		default:
+			break Loop
+		}
+	}
+
+	if E == nil && self.Parenthesis < 0 {
+		return self.Lexem.errorAt(ETooMuchCloseRB)
+	}
+	if E == nil && self.Parenthesis > 0 {
+		return self.Lexem.errorAt(ETooMuchOpenRB)
+	}
+
+	return
 }
 
 /*
@@ -550,7 +572,6 @@ BNF-определения для присваивания выражения п
 УНАРНАЯ ОПЕРАЦИЯ = '!'
 */
 func (Self *TSyntaxDescriptor) translateAssignment() error {
-	var item TLanguageItem
 	var E error
 
 	E = Self.translateComplexIdent()
@@ -559,9 +580,8 @@ func (Self *TSyntaxDescriptor) translateAssignment() error {
 	}
 
 	if Self.Lexem.Type == ltEqualSign {
-		item = TLanguageItem{Type: ltitAssignment}
-		Self.LanguageItems = append(Self.LanguageItems, item)
-		Self.Lexem = Self.Lexem.Next // пропускаю знак =
+		Self.AppendItem(ltitAssignment)
+		Self.NextLexem() // пропускаю знак =
 	} else {
 		return Self.Lexem.errorAt(ESyntaxError)
 	}
@@ -583,30 +603,21 @@ func (Self *TSyntaxDescriptor) translateAssignment() error {
 Loop:
 	for {
 		switch Self.Lexem.Type {
-		case ltSemicolon:
-			{
-				break Loop
-			}
-
 		//TODO: вынести проверку операции в функцию и добавить проверку
 		//      остальных операций: > < >= <= >> << ! ~
 		case ltPlus, ltMinus, ltStar, ltSlash, ltPercent:
-			{
-				E = Self.translateOperation()
-				if E != nil {
-					return E
-				}
+			E = Self.translateOperation()
+			if E != nil {
+				return E
+			}
 
-				E = Self.translateArgument()
-				if E != nil {
-					return E
-				}
+			E = Self.translateArgument()
+			if E != nil {
+				return E
 			}
 
 		default:
-			{
-				break Loop
-			}
+			break Loop
 		}
 	}
 
@@ -633,50 +644,146 @@ func (self *TSyntaxDescriptor) end() {
 }
 
 /*
-BNF-определения для оператора 'если'
-<ЕСЛИ> <НАЧАЛО> [<ОПЕРАТОРЫ>] <КОНЕЦ> [<ИНАЧЕ> <НАЧАЛО> [<ОПЕРАТОРЫ>] <КОНЕЦ>]
-ЕСЛИ = 'если' | 'if'
-ИНАЧЕ = 'иначе' | 'else'
+Анализ группы операторов в программных скобках '{' '}'
 */
-func (self *TSyntaxDescriptor) translateIfStatement() error {
-	return self.Lexem.errorAt(ESyntaxError)
+func (self *TSyntaxDescriptor) translateGroupOfStatements() (E error) {
+	E = nil
+
+	var (
+		wasBegin bool
+		wasEnd   bool
+	)
+
+	wasBegin = self.Lexem.Type == ltLBrace
+	if !wasBegin && self.Lexem.Type == ltIdent {
+		S := self.Lexem.LexemAsString()
+		kId := toKeywordId(S)
+		wasBegin = kId == kwiBegin
+	}
+
+	if !wasBegin {
+		return self.translateLexem()
+	}
+
+	self.begin()
+
+Loop:
+	for {
+		switch self.Lexem.Type {
+		case ltRBrace:
+			wasEnd = true
+
+		case ltEOF:
+			return self.Lexem.errorAt(EExpectedCloseOper)
+
+		case ltIdent:
+			S := self.Lexem.LexemAsString()
+			kId := toKeywordId(S)
+			wasEnd = kId == kwiEnd
+		}
+
+		if wasEnd {
+			self.end()
+			break Loop
+		}
+
+		E = self.translateLexem()
+	}
+
+	return
 }
 
-func (self *TSyntaxDescriptor) translateIdent() error {
+/*
+BNF-определения для оператора 'если'
+ОПЕРАТОР ЕСЛИ = <ЕСЛИ> <ВЫРАЖЕНИЕ> <ВЕТКА> [<ИНАЧЕ> <ВЕТКА>]
+ЕСЛИ = 'если' | 'if'
+ИНАЧЕ = 'иначе' | 'else'
+ВЕТКА = <НАЧАЛО> <ОПЕРАТОРЫ> <КОНЕЦ>
+*/
+func (self *TSyntaxDescriptor) translateIfStatement() (E error) {
+	S := self.Lexem.LexemAsString()
+	kId := toKeywordId(S)
+	if kId != kwiIf {
+		return self.Lexem.errorAt(ESyntaxError)
+	}
+	self.NextLexem()
+	self.AppendItem(ltitIf)
+
+	if E = self.translateExpression(); E != nil {
+		return
+	}
+	if E = self.translateGroupOfStatements(); E != nil {
+		return
+	}
+	S = self.Lexem.LexemAsString()
+	kId = toKeywordId(S)
+	if kId == kwiElse {
+		self.NextLexem()
+		self.AppendItem(ltitElse)
+		E = self.translateGroupOfStatements()
+	}
+
+	return
+}
+
+func (self *TSyntaxDescriptor) translateIdent() (E error) {
+	E = nil
 	S := self.Lexem.LexemAsString()
 	kId := toKeywordId(S)
 	switch kId {
 	case kwiFunction:
-		{
-			if E := self.translateFunctionDeclaration(); E != nil {
-				return E
-			}
-		}
+		E = self.translateFunctionDeclaration()
 
 	case kwiBegin:
-		{
-			self.begin()
-		}
+		self.begin()
 
 	case kwiEnd:
-		{
-			self.end()
-		}
+		self.end()
 
 	case kwiIf:
-		{
-			if E := self.translateIfStatement(); E != nil {
-				return E
-			}
-		}
+		E = self.translateIfStatement()
 
 	default:
-		{
-			self.NextLexem()
-		}
+		self.NextLexem()
 	}
 
-	return nil
+	return
+}
+
+/*
+Анализ лексемы, когда нет активного оператора
+Например, после for
+должна быть инициализация переменной цикла, 'to', <ВЫРАЖЕНИЕ>, возможно шаг,
+возможно 'begin', далее идёт всё что угодно, вот тут translateLexem и нужен
+*/
+func (self *TSyntaxDescriptor) translateLexem() (E error) {
+	E = nil
+	switch self.Lexem.Type {
+	case ltIdent:
+		E = self.translateIdent()
+
+	case ltEqualSign:
+		self.Lexem = self.StartLexem
+		E = self.translateAssignment()
+
+	case ltEOL:
+		self.NextLexem()
+
+	case ltLBrace:
+		self.begin()
+
+	case ltRBrace:
+		self.end()
+
+	default:
+		if self.Lexem.Size > 0 {
+			fmt.Printf("Лехема: %d size: %d %s ",
+				self.Lexem.Type, self.Lexem.Size, self.Lexem.LexemAsString())
+		}
+		self.NextLexem()
+	}
+
+	return
 }
 
 /*
@@ -694,49 +801,9 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 		StrStrings:    make([]string, 0, 1024),
 	}
 
-	var (
-		E error = nil
-	)
-
 	for sd.Lexem != nil && sd.Lexem.Type != ltEOF {
-		switch sd.Lexem.Type {
-		case ltIdent:
-			{
-				if E = sd.translateIdent(); E != nil {
-					return TSyntaxDescriptor{}, E
-				}
-			}
-
-		case ltEqualSign:
-			{
-				sd.Lexem = sd.StartLexem
-				E = sd.translateAssignment()
-				if E != nil {
-					return TSyntaxDescriptor{}, E
-				}
-			}
-
-		case ltEOL:
-			{
-				sd.NextLexem()
-			}
-
-		case ltLBrace:
-			{
-				sd.begin()
-			}
-
-		case ltRBrace:
-			{
-				sd.end()
-			}
-
-		default:
-			if sd.Lexem.Size > 0 {
-				fmt.Printf("Лехема: %d size: %d %s ",
-					sd.Lexem.Type, sd.Lexem.Size, sd.Lexem.LexemAsString())
-			}
-			sd.NextLexem()
+		if E := sd.translateLexem(); E != nil {
+			return TSyntaxDescriptor{}, E
 		}
 	}
 

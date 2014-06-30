@@ -333,3 +333,22 @@ func TestTranslateCode(t *testing.T) {
 		t.Fatal(S)
 	}
 }
+
+func TestIfStatement(t *testing.T) {
+	var (
+		S    string
+		ok     bool
+	)
+
+	if S, ok = stringIsValidCode(
+		"if S = 15 {} else {}",
+		[]tLanguageItem{
+			{ltitIf, ""},
+			{ltitIdent, "S"}, {ltitEqual, ""}, {ltitNumber, "15"},
+			{ltitBegin, ""}, {ltitEnd, ""},
+			{ltitElse, ""},
+			{ltitBegin, ""}, {ltitEnd, ""},
+		}); !ok {
+		t.Fatal(S)
+	}
+}
