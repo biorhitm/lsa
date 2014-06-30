@@ -31,7 +31,7 @@ func compareLanguageItems(SD TSyntaxDescriptor,
 
 	for itemNo, _ := range SD.LanguageItems {
 		T := SD.LanguageItems[itemNo].Type
-		if itemNo >= len(AStandardItems) {
+		if result && itemNo >= len(AStandardItems) {
 			mes = fmt.Sprintf("Тип элемента: %d, ожидается конец, Лексема № %d",
 				T, itemNo)
 			result = false
@@ -75,7 +75,10 @@ func compareLanguageItems(SD TSyntaxDescriptor,
 				result = false
 			}
 		} else {
-			fmt.Printf("[%d]: '%s' ", itemNo, S)
+			if S != "" {
+				S = "'" + S + "'"
+			}
+			fmt.Printf("[%d]: %s ", itemNo, S)
 		}
 	}
 	if result && len(SD.LanguageItems) != len(AStandardItems) {
@@ -239,7 +242,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	)
 
 	if S, ok = stringIsFunctionDeclaration(
-		"функция Имя класса.Имя функции(А: Новый Тип, Б,В,Г: пакет.Тип)",
+		"функция Имя класса.Имя функции(А: Новый Тип, Б,В,Г: пакет.Тип) начало",
 		[]tLanguageItem{
 			{ltitFunction, ""},
 			{ltitClassMember, ""}, {ltitIdent, "Имя класса"},
@@ -255,7 +258,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	}
 
 	if S, ok = stringIsFunctionDeclaration(
-		"function F(А,Б: Int64): System.bool",
+		"function F(А,Б: Int64): System.bool начало",
 		[]tLanguageItem{
 			{ltitFunction, ""}, {ltitIdent, "F"},
 			{ltitParameters, ""}, {ltitIdent, "А"}, {ltitIdent, "Б"},
@@ -275,19 +278,75 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 			{ltitVarList, ""},
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
 			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
-			{ltitBegin, ""}, {ltitEnd, ""},
 		}); !ok {
 		t.Fatal(S)
 	}
 
 	if S, ok = stringIsFunctionDeclaration(
-		"def foo(): Тип функции foo var А, Б, В: Unicode Символ {}",
+		"def foo: Тип функции foo var А, Б, В: Unicode Символ {}",
 		[]tLanguageItem{
 			{ltitFunction, ""}, {ltitIdent, "foo"},
 			{ltitDataType, ""}, {ltitIdent, "Тип функции foo"},
 			{ltitVarList, ""},
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
 			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
+		}); !ok {
+		t.Fatal(S)
+	}
+}
+
+func stringIsValidCode(AText string, AItems []tLanguageItem) (string, bool) {
+	var (
+		lexems *TLexem
+		sd TSyntaxDescriptor
+		E  error
+	)
+	if lexems, E = stringToLexems(AText); E != nil {
+		return E.Error(), false
+	}
+	if sd, E = TranslateCode(lexems); E != nil {
+		return E.Error(), false
+	}
+
+	if S, ok := compareLanguageItems(sd, AItems); !ok {
+		return S, false
+	}
+	return "", true
+}
+
+func TestTranslateCode(t *testing.T) {
+	var (
+		S    string
+		ok     bool
+	)
+
+	if S, ok = stringIsValidCode(
+		"def foo: Тип функции foo var А, Б, В: Unicode Символ {}",
+		[]tLanguageItem{
+			{ltitFunction, ""}, {ltitIdent, "foo"},
+			{ltitDataType, ""}, {ltitIdent, "Тип функции foo"},
+			{ltitVarList, ""},
+			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
+			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
+			{ltitBegin, ""}, {ltitEnd, ""},
+		}); !ok {
+		t.Fatal(S)
+	}
+}
+
+func TestIfStatement(t *testing.T) {
+	var (
+		S    string
+		ok     bool
+	)
+
+	if S, ok = stringIsValidCode(
+		"if S = 15 {} else {}",
+		[]tLanguageItem{
+			{ltitIf, ""},
+			{ltitIdent, "S"}, {ltitEqual, ""}, {ltitNumber, "15"},
+			{ltitBegin, ""}, {ltitEnd, ""},
+			{ltitElse, ""},
 			{ltitBegin, ""}, {ltitEnd, ""},
 		}); !ok {
 		t.Fatal(S)
