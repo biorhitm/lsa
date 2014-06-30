@@ -242,7 +242,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	)
 
 	if S, ok = stringIsFunctionDeclaration(
-		"функция Имя класса.Имя функции(А: Новый Тип, Б,В,Г: пакет.Тип) начало",
+		"функция Имя класса.Имя функции(А: Новый Тип, Б,В,Г: пакет.Тип) начало конец",
 		[]tLanguageItem{
 			{ltitFunction, ""},
 			{ltitClassMember, ""}, {ltitIdent, "Имя класса"},
@@ -253,12 +253,13 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 			{ltitDataType, ""},
 			{ltitPackageName, ""}, {ltitIdent, "пакет"},
 			{ltitIdent, "Тип"},
+			{ltitBegin, ""}, {ltitEnd, ""},
 		}); !ok {
 		t.Fatal(S)
 	}
 
 	if S, ok = stringIsFunctionDeclaration(
-		"function F(А,Б: Int64): System.bool начало",
+		"function F(А,Б: Int64): System.bool начало конец",
 		[]tLanguageItem{
 			{ltitFunction, ""}, {ltitIdent, "F"},
 			{ltitParameters, ""}, {ltitIdent, "А"}, {ltitIdent, "Б"},
@@ -266,6 +267,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 			{ltitDataType, ""},
 			{ltitPackageName, ""}, {ltitIdent, "System"},
 			{ltitIdent, "bool"},
+			{ltitBegin, ""}, {ltitEnd, ""},
 		}); !ok {
 		t.Fatal(S)
 	}
@@ -278,6 +280,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 			{ltitVarList, ""},
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
 			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
+			{ltitBegin, ""}, {ltitEnd, ""},
 		}); !ok {
 		t.Fatal(S)
 	}
@@ -290,6 +293,7 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 			{ltitVarList, ""},
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
 			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
+			{ltitBegin, ""}, {ltitEnd, ""},
 		}); !ok {
 		t.Fatal(S)
 	}
@@ -298,8 +302,8 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 func stringIsValidCode(AText string, AItems []tLanguageItem) (string, bool) {
 	var (
 		lexems *TLexem
-		sd TSyntaxDescriptor
-		E  error
+		sd     TSyntaxDescriptor
+		E      error
 	)
 	if lexems, E = stringToLexems(AText); E != nil {
 		return E.Error(), false
@@ -316,8 +320,8 @@ func stringIsValidCode(AText string, AItems []tLanguageItem) (string, bool) {
 
 func TestTranslateCode(t *testing.T) {
 	var (
-		S    string
-		ok     bool
+		S  string
+		ok bool
 	)
 
 	if S, ok = stringIsValidCode(
@@ -336,8 +340,8 @@ func TestTranslateCode(t *testing.T) {
 
 func TestIfStatement(t *testing.T) {
 	var (
-		S    string
-		ok     bool
+		S  string
+		ok bool
 	)
 
 	if S, ok = stringIsValidCode(

@@ -386,6 +386,10 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 		}
 	}
 
+	if E := self.translateGroupOfStatements(); E != nil {
+		return E
+	}
+
 	return nil
 }
 
