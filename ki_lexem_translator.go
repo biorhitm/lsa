@@ -286,6 +286,59 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 	return nil
 }
 
+func (self *TSyntaxDescriptor) translateVarList() error {
+	var (
+		S, name string
+		ok      bool
+		keywId  uint
+	)
+
+	S = self.Lexem.LexemAsString()
+	keywId = toKeywordId(S)
+	if keywId == kwiVariable {
+		self.AppendItem(ltitVarList)
+		self.NextLexem()
+
+		typeNotPresent := true
+		for {
+			if name, ok = self.ExtractComplexIdent(); !ok {
+				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается имя переменной"})
+			}
+			self.AppendIdent(name)
+
+			if self.Lexem.Type == ltColon {
+				self.NextLexem()
+				if name, ok = self.ExtractComplexIdent(); !ok {
+					return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип переменной"})
+				}
+				self.AppendItem(ltitDataType)
+				if self.Lexem.Type == ltDot {
+					self.NextLexem()
+					self.AppendItem(ltitPackageName)
+					self.AppendIdent(name)
+					if name, ok = self.ExtractComplexIdent(); !ok {
+						return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип переменной"})
+					}
+					typeNotPresent = false
+				}
+				self.AppendIdent(name)
+				typeNotPresent = false
+			}
+			//если после параметра нет ',', значит список кончился, жду 'начало'
+			if self.Lexem.Type != ltComma {
+				break
+			}
+			self.NextLexem()
+			typeNotPresent = false
+		}
+		if typeNotPresent {
+			return self.Lexem.errorAt(&lsaError{Msg: "Не указан тип параметра"})
+		}
+	}
+
+	return nil
+}
+
 /*
 BNF-правила для объявления функции
 ОБЪЯВЛЕНИЕ ФУНКЦИИ = <ФУНКЦИЯ> <ИМЯ ФУНКЦИИ> [<ПРОТОТИП>]
@@ -343,47 +396,11 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	}
 
 	// читаю список локальных переменных
-	S = self.Lexem.LexemAsString()
-	keywId = toKeywordId(S)
-	if keywId == kwiVariable {
-		self.AppendItem(ltitVarList)
-		self.NextLexem()
-
-		typeNotPresent := true
-		for {
-			if name, ok = self.ExtractComplexIdent(); !ok {
-				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается имя переменной"})
-			}
-			self.AppendIdent(name)
-
-			if self.Lexem.Type == ltColon {
-				self.NextLexem()
-				if name, ok = self.ExtractComplexIdent(); !ok {
-					return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип переменной"})
-				}
-				self.AppendItem(ltitDataType)
-				if self.Lexem.Type == ltDot {
-					self.NextLexem()
-					self.AppendItem(ltitPackageName)
-					self.AppendIdent(name)
-					if name, ok = self.ExtractComplexIdent(); !ok {
-						return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип переменной"})
-					}
-					typeNotPresent = false
-				}
-				self.AppendIdent(name)
-				typeNotPresent = false
-			}
-			//если после параметра нет ',', значит список кончился, жду 'начало'
-			if self.Lexem.Type != ltComma {
-				break
-			}
-			self.NextLexem()
-			typeNotPresent = false
-		}
-		if typeNotPresent {
-			return self.Lexem.errorAt(&lsaError{Msg: "Не указан тип параметра"})
-		}
+	if E := self.translateVarList(); E != nil {
+		return E
+	}
+	if E := self.translateGroupOfStatements(); E != nil {
+		return E
 	}
 
 	return nil
@@ -731,6 +748,9 @@ func (self *TSyntaxDescriptor) translateIdent() (E error) {
 	S := self.Lexem.LexemAsString()
 	kId := toKeywordId(S)
 	switch kId {
+	case kwiVariable:
+		E = self.translateVarList()
+
 	case kwiFunction:
 		E = self.translateFunctionDeclaration()
 
