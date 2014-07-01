@@ -1,6 +1,7 @@
 package lsa
 
 import (
+	"errors"
 	"fmt"
 	"github.com/biorhitm/memfs"
 	"testing"
@@ -88,6 +89,24 @@ func compareLanguageItems(SD TSyntaxDescriptor,
 	}
 
 	return
+}
+
+func compareStringAndLanguageItems(AText string, AItems []tLanguageItem) error {
+	var (
+		lexems *TLexem
+		sd     TSyntaxDescriptor
+		E      error
+	)
+	if lexems, E = stringToLexems(AText); E != nil {
+		return E
+	}
+	if sd, E = TranslateCode(lexems); E != nil {
+		return E
+	}
+	if S, ok := compareLanguageItems(sd, AItems); !ok {
+		return errors.New(S)
+	}
+	return nil
 }
 
 func TestTranslateArgument(t *testing.T) {
@@ -299,32 +318,8 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 	}
 }
 
-func stringIsValidCode(AText string, AItems []tLanguageItem) (string, bool) {
-	var (
-		lexems *TLexem
-		sd     TSyntaxDescriptor
-		E      error
-	)
-	if lexems, E = stringToLexems(AText); E != nil {
-		return E.Error(), false
-	}
-	if sd, E = TranslateCode(lexems); E != nil {
-		return E.Error(), false
-	}
-
-	if S, ok := compareLanguageItems(sd, AItems); !ok {
-		return S, false
-	}
-	return "", true
-}
-
 func TestTranslateCode(t *testing.T) {
-	var (
-		S  string
-		ok bool
-	)
-
-	if S, ok = stringIsValidCode(
+	if E := compareStringAndLanguageItems(
 		"def foo: Тип функции foo var А, Б, В: Unicode Символ {}",
 		[]tLanguageItem{
 			{ltitFunction, ""}, {ltitIdent, "foo"},
@@ -333,18 +328,13 @@ func TestTranslateCode(t *testing.T) {
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
 			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
 			{ltitBegin, ""}, {ltitEnd, ""},
-		}); !ok {
-		t.Fatal(S)
+		}); E != nil {
+		t.Fatal(E.Error())
 	}
 }
 
 func TestIfStatement(t *testing.T) {
-	var (
-		S  string
-		ok bool
-	)
-
-	if S, ok = stringIsValidCode(
+	if E := compareStringAndLanguageItems(
 		"if S = 15 {} else {}",
 		[]tLanguageItem{
 			{ltitIf, ""},
@@ -352,23 +342,32 @@ func TestIfStatement(t *testing.T) {
 			{ltitBegin, ""}, {ltitEnd, ""},
 			{ltitElse, ""},
 			{ltitBegin, ""}, {ltitEnd, ""},
-		}); !ok {
-		t.Fatal(S)
+		}); E != nil {
+		t.Fatal(E.Error())
 	}
 }
 
 func TestVarList(t *testing.T) {
-	var (
-		S  string
-		ok bool
-	)
-
-	if S, ok = stringIsValidCode(
+	if E := compareStringAndLanguageItems(
 		"переменные Возраст: целый",
 		[]tLanguageItem{
 			{ltitVarList, ""},
 			{ltitIdent, "Возраст"}, {ltitDataType, ""}, {ltitIdent, "целый"},
-		}); !ok {
-		t.Fatal(S)
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"var A, B, C: int, S: string, булева переменная: система.булевый",
+		[]tLanguageItem{
+			{ltitVarList, ""},
+			{ltitIdent, "A"},
+			{ltitIdent, "B"},
+			{ltitIdent, "C"}, {ltitDataType, ""}, {ltitIdent, "int"},
+			{ltitIdent, "S"}, {ltitDataType, ""}, {ltitIdent, "string"},
+			{ltitIdent, "булева переменная"},
+			{ltitDataType, ""}, {ltitPackageName, ""},
+			{ltitIdent, "система"}, {ltitIdent, "булевый"},
+		}); E != nil {
+		t.Fatal(E.Error())
 	}
 }
