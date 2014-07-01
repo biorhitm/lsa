@@ -431,12 +431,8 @@ func (list *TStringArray) addUnique(S string) uint {
 
 func (self *TSyntaxDescriptor) translateNumber() error {
 	S := self.Lexem.LexemAsString()
-	index := self.StrNumbers.addUnique(S)
-
-	item := TLanguageItem{Type: ltitNumber, Index: index}
-	self.LanguageItems = append(self.LanguageItems, item)
-
-	self.Lexem = self.Lexem.Next
+	self.AppendNumber(S)
+	self.NextLexem()
 	return nil
 }
 
@@ -446,15 +442,13 @@ func (Self *TSyntaxDescriptor) translateComplexIdent() error {
 	}
 
 	S := Self.Lexem.LexemAsString()
-	Self.Lexem = Self.Lexem.Next
+	Self.NextLexem()
 	for Self.Lexem.Type == ltIdent {
 		S += " " + Self.Lexem.LexemAsString()
-		Self.Lexem = Self.Lexem.Next
+		Self.NextLexem()
 	}
 
-	index := Self.StrIdents.addUnique(S)
-	item := TLanguageItem{Type: ltitIdent, Index: index}
-	Self.LanguageItems = append(Self.LanguageItems, item)
+	Self.AppendIdent(S)
 	return nil
 }
 
@@ -465,11 +459,9 @@ func (self *TSyntaxDescriptor) translateString() error {
 	}
 
 	S := self.Lexem.LexemAsString()
-	self.Lexem = self.Lexem.Next
+	self.NextLexem()
 
-	index := self.StrStrings.addUnique(S)
-	item := TLanguageItem{Type: ltitString, Index: index}
-	self.LanguageItems = append(self.LanguageItems, item)
+	self.AppendString(S)
 
 	return nil
 }
@@ -772,8 +764,8 @@ func (self *TSyntaxDescriptor) translateIdent() (E error) {
 
 /*
 Анализ лексемы, когда нет активного оператора
-Например, после for
-должна быть инициализация переменной цикла, 'to', <ВЫРАЖЕНИЕ>, возможно шаг,
+Например, после for должна быть инициализация переменной цикла, 'to',
+<ВЫРАЖЕНИЕ>, возможно шаг,
 возможно 'begin', далее идёт всё что угодно, вот тут translateLexem и нужен
 */
 func (self *TSyntaxDescriptor) translateLexem() (E error) {
