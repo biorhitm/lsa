@@ -133,89 +133,41 @@ func TestTranslateArgument(t *testing.T) {
 }
 
 func TestTranslateAssigment(t *testing.T) {
-	var (
-		SD TSyntaxDescriptor
-		E  error
-		S  string
-		ok bool
-	)
-
-	//**************************************************************************
-	S = "Важное число = 42 + 1 - 17 / 2.71 * 0.37"
-	//**************************************************************************
-	if SD.Lexem, E = stringToLexems(S); E != nil {
+	if E := compareStringAndLanguageItems(
+		"Важное число = 42 + 1 - 17 / 2.71 * 0.37",
+		[]tLanguageItem{
+			{ltitIdent, "Важное число"},
+			{ltitAssignment, ""},
+			{ltitNumber, "42"}, {ltitMathAdd, ""}, {ltitNumber, "1"},
+			{ltitMathSub, ""}, {ltitNumber, "17"},
+			{ltitMathDiv, ""}, {ltitNumber, "2.71"},
+			{ltitMathMul, ""}, {ltitNumber, "0.37"},
+		}); E != nil {
 		t.Fatal(E.Error())
 	}
 
-	if E = SD.translateAssignment(); E != nil {
+	if E := compareStringAndLanguageItems(
+		"Длина окружности = Diameter of the circle * PI * 3.14",
+		[]tLanguageItem{
+			{ltitIdent, "Длина окружности"},
+			{ltitAssignment, ""},
+			{ltitIdent, "Diameter of the circle"},
+			{ltitMathMul, ""},
+			{ltitIdent, "PI"},
+			{ltitMathMul, ""},
+			{ltitNumber, "3.14"},
+		}); E != nil {
 		t.Fatal(E.Error())
 	}
 
-	S, ok = compareLanguageItems(SD, []tLanguageItem{
-		{ltitIdent, "Важное число"},
-		{ltitAssignment, ""},
-		{ltitNumber, "42"},
-		{ltitMathAdd, ""},
-		{ltitNumber, "1"},
-		{ltitMathSub, ""},
-		{ltitNumber, "17"},
-		{ltitMathDiv, ""},
-		{ltitNumber, "2.71"},
-		{ltitMathMul, ""},
-		{ltitNumber, "0.37"},
-	})
-
-	if !ok {
-		t.Fatal(S)
-	}
-
-	//**************************************************************************
-	S = "Длина окружности = Diameter of the circle * PI * 3.14"
-	//**************************************************************************
-	SD.Init()
-	if SD.Lexem, E = stringToLexems(S); E != nil {
+	if E := compareStringAndLanguageItems(
+		"Текст = \"Привет\" + \" \" + \"мир!\"",
+		[]tLanguageItem{
+			{ltitIdent, "Текст"}, {ltitAssignment, ""}, {ltitString, "Привет"},
+			{ltitMathAdd, ""}, {ltitString, " "}, {ltitMathAdd, ""},
+			{ltitString, "мир!"},
+		}); E != nil {
 		t.Fatal(E.Error())
-	}
-
-	if E = SD.translateAssignment(); E != nil {
-		t.Fatal(E.Error())
-	}
-
-	S, ok = compareLanguageItems(SD, []tLanguageItem{
-		{ltitIdent, "Длина окружности"},
-		{ltitAssignment, ""},
-		{ltitIdent, "Diameter of the circle"},
-		{ltitMathMul, ""},
-		{ltitIdent, "PI"},
-		{ltitMathMul, ""},
-		{ltitNumber, "3.14"},
-	})
-
-	if !ok {
-		t.Fatal(S)
-	}
-
-	//**************************************************************************
-	S = "Текст = \"Привет\" + \" \" + \"мир!\""
-	//**************************************************************************
-	SD.Init()
-	if SD.Lexem, E = stringToLexems(S); E != nil {
-		t.Fatal(E.Error())
-	}
-	if E = SD.translateAssignment(); E != nil {
-		t.Fatal(E.Error())
-	}
-	S, ok = compareLanguageItems(SD, []tLanguageItem{
-		{ltitIdent, "Текст"},
-		{ltitAssignment, ""},
-		{ltitString, "Привет"},
-		{ltitMathAdd, ""},
-		{ltitString, " "},
-		{ltitMathAdd, ""},
-		{ltitString, "мир!"},
-	})
-	if !ok {
-		t.Fatal(S)
 	}
 }
 
@@ -232,35 +184,8 @@ func Test_addUnique(t *testing.T) {
 	}
 }
 
-func stringIsFunctionDeclaration(AText string, AItems []tLanguageItem) (string,
-	bool) {
-	var (
-		SD TSyntaxDescriptor
-		E  error
-		S  string
-		ok bool
-	)
-	SD.Init()
-	if SD.Lexem, E = stringToLexems(AText); E != nil {
-		return E.Error(), false
-	}
-	if E = SD.translateFunctionDeclaration(); E != nil {
-		return E.Error(), false
-	}
-
-	if S, ok = compareLanguageItems(SD, AItems); !ok {
-		return S, false
-	}
-	return "", true
-}
-
 func TestTranslateFunctionDeclaration(t *testing.T) {
-	var (
-		S  string
-		ok bool
-	)
-
-	if S, ok = stringIsFunctionDeclaration(
+	if E := compareStringAndLanguageItems(
 		"функция Имя класса.Имя функции(А: Новый Тип, Б,В,Г: пакет.Тип) начало конец",
 		[]tLanguageItem{
 			{ltitFunction, ""},
@@ -273,11 +198,11 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 			{ltitPackageName, ""}, {ltitIdent, "пакет"},
 			{ltitIdent, "Тип"},
 			{ltitBegin, ""}, {ltitEnd, ""},
-		}); !ok {
-		t.Fatal(S)
+		}); E != nil {
+		t.Fatal(E.Error())
 	}
 
-	if S, ok = stringIsFunctionDeclaration(
+	if E := compareStringAndLanguageItems(
 		"function F(А,Б: Int64): System.bool начало конец",
 		[]tLanguageItem{
 			{ltitFunction, ""}, {ltitIdent, "F"},
@@ -287,11 +212,11 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 			{ltitPackageName, ""}, {ltitIdent, "System"},
 			{ltitIdent, "bool"},
 			{ltitBegin, ""}, {ltitEnd, ""},
-		}); !ok {
-		t.Fatal(S)
+		}); E != nil {
+		t.Fatal(E.Error())
 	}
 
-	if S, ok = stringIsFunctionDeclaration(
+	if E := compareStringAndLanguageItems(
 		"func foo(): int переменные А, Б, В: Unicode Символ начало конец",
 		[]tLanguageItem{
 			{ltitFunction, ""}, {ltitIdent, "foo"},
@@ -300,11 +225,11 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
 			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
 			{ltitBegin, ""}, {ltitEnd, ""},
-		}); !ok {
-		t.Fatal(S)
+		}); E != nil {
+		t.Fatal(E.Error())
 	}
 
-	if S, ok = stringIsFunctionDeclaration(
+	if E := compareStringAndLanguageItems(
 		"def foo: Тип функции foo var А, Б, В: Unicode Символ {}",
 		[]tLanguageItem{
 			{ltitFunction, ""}, {ltitIdent, "foo"},
@@ -313,8 +238,8 @@ func TestTranslateFunctionDeclaration(t *testing.T) {
 			{ltitIdent, "А"}, {ltitIdent, "Б"}, {ltitIdent, "В"},
 			{ltitDataType, ""}, {ltitIdent, "Unicode Символ"},
 			{ltitBegin, ""}, {ltitEnd, ""},
-		}); !ok {
-		t.Fatal(S)
+		}); E != nil {
+		t.Fatal(E.Error())
 	}
 }
 
