@@ -356,3 +356,19 @@ func TestIfStatement(t *testing.T) {
 		t.Fatal(S)
 	}
 }
+
+func TestVarList(t *testing.T) {
+	var (
+		S  string
+		ok bool
+	)
+
+	if S, ok = stringIsValidCode(
+		"переменные Возраст: целый",
+		[]tLanguageItem{
+			{ltitVarList, ""},
+			{ltitIdent, "Возраст"}, {ltitDataType, ""}, {ltitIdent, "целый"},
+		}); !ok {
+		t.Fatal(S)
+	}
+}

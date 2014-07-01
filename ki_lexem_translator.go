@@ -748,6 +748,9 @@ func (self *TSyntaxDescriptor) translateIdent() (E error) {
 	S := self.Lexem.LexemAsString()
 	kId := toKeywordId(S)
 	switch kId {
+	case kwiVariable:
+		E = self.translateVarList()
+
 	case kwiFunction:
 		E = self.translateFunctionDeclaration()
 
