@@ -296,3 +296,16 @@ func TestVarList(t *testing.T) {
 		t.Fatal(E.Error())
 	}
 }
+
+func TestWhileStatement(t *testing.T) {
+	if E := compareStringAndLanguageItems(
+		"пока рак на горе = свистнет начало конец",
+		[]tLanguageItem{
+			{ltitWhile, ""},
+			{ltitIdent, "рак на горе"}, {ltitEqual, ""},
+			{ltitIdent, "свистнет"},
+			{ltitBegin, ""}, {ltitEnd, ""},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+}
