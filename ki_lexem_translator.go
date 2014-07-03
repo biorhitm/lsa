@@ -164,21 +164,24 @@ func (self *TSyntaxDescriptor) NextLexem() {
 
 //TODO: должен возвращать ошибку 'встретилось зарезервированное слово' с
 // кодом слова
-func (self *TSyntaxDescriptor) ExtractComplexIdent() (string, bool) {
+func (self *TSyntaxDescriptor) ExtractComplexIdent(AKeywordId *uint) (string, bool) {
 	if self.Lexem.Type != ltIdent {
 		return "", false
 	}
 	S := self.Lexem.LexemAsString()
 	kId := toKeywordId(S)
 	if kId != kwiUnknown {
+		*AKeywordId = kId
 		return "Встретилось зарезервированное слово", false
 	}
+	*AKeywordId = kwiUnknown
 	self.NextLexem()
 	res := S
 	for self.Lexem.Type == ltIdent {
 		S := self.Lexem.LexemAsString()
 		kId := toKeywordId(S)
 		if kId != kwiUnknown {
+			*AKeywordId = kId
 			return res, true
 		}
 		res += " " + S
@@ -208,6 +211,7 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 	var (
 		name string
 		ok   bool
+		kId  uint
 	)
 
 	//[<ПАРАМЕТРЫ>]
@@ -222,7 +226,7 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 		for self.Lexem.Type != ltCloseParenthesis {
 			//СПИСОК ИМЁН = <ИМЯ> {',' <ИМЯ>}
 			for {
-				name, ok = self.ExtractComplexIdent()
+				name, ok = self.ExtractComplexIdent(&kId)
 				if !ok {
 					return self.Lexem.errorAt(&lsaError{Msg: "Отсутствует имя параметра"})
 				}
