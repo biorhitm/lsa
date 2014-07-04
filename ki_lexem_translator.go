@@ -78,14 +78,15 @@ func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
 	return ALexem
 }
 
+type TKeywordId uint
 type TKeyword struct {
-	Id   uint
+	Id   TKeywordId
 	Name string
 }
 
 // KeywordsIds
 const (
-	kwiUnknown = iota
+	kwiUnknown = TKeywordId(iota)
 	kwiFunction
 	kwiVariable
 	kwiBegin
@@ -126,7 +127,7 @@ var (
 	ETooMuchCloseRB     = &lsaError{Msg: "Слишком много )"}
 	ETooMuchOpenRB      = &lsaError{Msg: "Слишком много ("}
 	EExpectedCloseOper  = &lsaError{Msg: "Отсутствует 'конец'"}
-	EKeyword            = &lsaError{Msg: "Встретилось зарезервированное слово"}
+	EUnExpectedKeyword  = &lsaError{Msg: "Встретилось зарезервированное слово"}
 )
 
 func (self *TSyntaxDescriptor) Init() {
@@ -174,30 +175,32 @@ func newEKeywordError(AKeyword uint) *lsaError {
 
 //TODO: должен возвращать ошибку 'встретилось зарезервированное слово' с
 // кодом слова
-func (self *TSyntaxDescriptor) ExtractComplexIdent() (string, error) {
+func (self *TSyntaxDescriptor) ExtractComplexIdent() (error, string,
+	TKeywordId) {
 	if self.Lexem.Type != ltIdent {
-		return "", self.Lexem.errorAt(ESyntaxError)
+		return self.Lexem.errorAt(ESyntaxError), "", kwiUnknown
 	}
 	S := self.Lexem.LexemAsString()
 	kId := toKeywordId(S)
 	if kId != kwiUnknown {
-		return S, self.Lexem.errorAt(newEKeywordError(kId))
+		return self.Lexem.errorAt(EUnExpectedKeyword), "", kId
 	}
+	kId = kwiUnknown
 	self.NextLexem()
 	res := S
 	for self.Lexem.Type == ltIdent {
 		S := self.Lexem.LexemAsString()
 		kId := toKeywordId(S)
 		if kId != kwiUnknown {
-			return res, self.Lexem.errorAt(newEKeywordError(kId))
+			return nil, res, kId
 		}
 		res += " " + S
 		self.NextLexem()
 	}
-	return res, nil
+	return nil, res, kwiUnknown
 }
 
-func toKeywordId(S string) uint {
+func toKeywordId(S string) TKeywordId {
 	for i := 0; i < len(keywordList); i++ {
 		if S == keywordList[i].Name {
 			return keywordList[i].Id
@@ -218,6 +221,7 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 	var (
 		name string
 		E    error
+		kId  TKeywordId = kwiUnknown
 	)
 
 	//[<ПАРАМЕТРЫ>]
@@ -232,7 +236,7 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 		for self.Lexem.Type != ltCloseParenthesis {
 			//СПИСОК ИМЁН = <ИМЯ> {',' <ИМЯ>}
 			for {
-				name, E = self.ExtractComplexIdent()
+				E, name, kId = self.ExtractComplexIdent()
 				if E != nil {
 					return self.Lexem.errorAt(&lsaError{
 						Msg: E.Error() + ". Отсутствует имя параметра"})
@@ -304,8 +308,8 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 func (self *TSyntaxDescriptor) translateVarList() error {
 	var (
 		S, name string
-		keywId  uint
 		E       error
+		keywId  TKeywordId
 	)
 
 	S = self.Lexem.LexemAsString()
@@ -373,8 +377,8 @@ BNF-правила для объявления функции
 func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	var (
 		S, name string
-		keywId  uint
 		E       error
+		keywId  TKeywordId
 	)
 
 	S = self.Lexem.LexemAsString()
