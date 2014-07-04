@@ -77,14 +77,15 @@ func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
 	return ALexem
 }
 
+type TKeywordId uint
 type TKeyword struct {
-	Id   uint
+	Id   TKeywordId
 	Name string
 }
 
 // KeywordsIds
 const (
-	kwiUnknown = iota
+	kwiUnknown = TKeywordId(iota)
 	kwiFunction
 	kwiVariable
 	kwiBegin
@@ -122,6 +123,7 @@ var (
 	ETooMuchCloseRB     = &lsaError{Msg: "Слишком много )"}
 	ETooMuchOpenRB      = &lsaError{Msg: "Слишком много ("}
 	EExpectedCloseOper  = &lsaError{Msg: "Отсутствует 'конец'"}
+	EUnExpectedKeyword  = &lsaError{Msg: "Встретилось ключевое слово"}
 )
 
 func (self *TSyntaxDescriptor) Init() {
@@ -164,33 +166,32 @@ func (self *TSyntaxDescriptor) NextLexem() {
 
 //TODO: должен возвращать ошибку 'встретилось зарезервированное слово' с
 // кодом слова
-func (self *TSyntaxDescriptor) ExtractComplexIdent(AKeywordId *uint) (string, bool) {
+func (self *TSyntaxDescriptor) ExtractComplexIdent() (error, string,
+	TKeywordId) {
 	if self.Lexem.Type != ltIdent {
-		return "", false
+		return self.Lexem.errorAt(ESyntaxError), "", kwiUnknown
 	}
 	S := self.Lexem.LexemAsString()
 	kId := toKeywordId(S)
 	if kId != kwiUnknown {
-		*AKeywordId = kId
-		return "Встретилось зарезервированное слово", false
+		return self.Lexem.errorAt(EUnExpectedKeyword), "", kId
 	}
-	*AKeywordId = kwiUnknown
+	kId = kwiUnknown
 	self.NextLexem()
 	res := S
 	for self.Lexem.Type == ltIdent {
 		S := self.Lexem.LexemAsString()
 		kId := toKeywordId(S)
 		if kId != kwiUnknown {
-			*AKeywordId = kId
-			return res, true
+			return nil, res, kId
 		}
 		res += " " + S
 		self.NextLexem()
 	}
-	return res, true
+	return nil, res, kwiUnknown
 }
 
-func toKeywordId(S string) uint {
+func toKeywordId(S string) TKeywordId {
 	for i := 0; i < len(keywordList); i++ {
 		if S == keywordList[i].Name {
 			return keywordList[i].Id
@@ -210,7 +211,7 @@ BNF-правила для прототипа функции
 func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 	var (
 		name string
-		ok   bool
+		E	error
 		kId  uint
 	)
 
@@ -294,7 +295,7 @@ func (self *TSyntaxDescriptor) translateVarList() error {
 	var (
 		S, name string
 		ok      bool
-		keywId  uint
+		keywId  TKeywordId
 	)
 
 	S = self.Lexem.LexemAsString()
@@ -363,7 +364,7 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	var (
 		S, name string
 		ok      bool
-		keywId  uint
+		keywId  TKeywordId
 	)
 
 	S = self.Lexem.LexemAsString()
