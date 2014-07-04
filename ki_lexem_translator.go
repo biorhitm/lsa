@@ -38,6 +38,7 @@ const (
 	ltitPackageName
 	ltitIf
 	ltitElse
+	ltitWhile
 )
 
 type TLanguageItem struct {
@@ -77,20 +78,22 @@ func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
 	return ALexem
 }
 
+type TKeywordId uint
 type TKeyword struct {
-	Id   uint
+	Id   TKeywordId
 	Name string
 }
 
 // KeywordsIds
 const (
-	kwiUnknown = iota
+	kwiUnknown = TKeywordId(iota)
 	kwiFunction
 	kwiVariable
 	kwiBegin
 	kwiEnd
 	kwiIf
 	kwiElse
+	kwiWhile
 )
 
 var (
@@ -110,6 +113,8 @@ var (
 		TKeyword{kwiIf, "if"},
 		TKeyword{kwiElse, "иначе"},
 		TKeyword{kwiElse, "else"},
+		TKeyword{kwiWhile, "пока"},
+		TKeyword{kwiWhile, "while"},
 		TKeyword{kwiUnknown, ""},
 	}
 )
@@ -122,6 +127,7 @@ var (
 	ETooMuchCloseRB     = &lsaError{Msg: "Слишком много )"}
 	ETooMuchOpenRB      = &lsaError{Msg: "Слишком много ("}
 	EExpectedCloseOper  = &lsaError{Msg: "Отсутствует 'конец'"}
+	EUnExpectedKeyword  = &lsaError{Msg: "Встретилось зарезервированное слово"}
 )
 
 func (self *TSyntaxDescriptor) Init() {
@@ -162,32 +168,39 @@ func (self *TSyntaxDescriptor) NextLexem() {
 	}
 }
 
+func newEKeywordError(AKeyword uint) *lsaError {
+	return &lsaError{Msg: "Встретилось зарезервированное слово",
+		Keyword: AKeyword}
+}
+
 //TODO: должен возвращать ошибку 'встретилось зарезервированное слово' с
 // кодом слова
-func (self *TSyntaxDescriptor) ExtractComplexIdent() (string, bool) {
+func (self *TSyntaxDescriptor) ExtractComplexIdent() (error, string,
+	TKeywordId) {
 	if self.Lexem.Type != ltIdent {
-		return "", false
+		return self.Lexem.errorAt(ESyntaxError), "", kwiUnknown
 	}
 	S := self.Lexem.LexemAsString()
 	kId := toKeywordId(S)
 	if kId != kwiUnknown {
-		return "Встретилось зарезервированное слово", false
+		return self.Lexem.errorAt(EUnExpectedKeyword), "", kId
 	}
+	kId = kwiUnknown
 	self.NextLexem()
 	res := S
 	for self.Lexem.Type == ltIdent {
 		S := self.Lexem.LexemAsString()
 		kId := toKeywordId(S)
 		if kId != kwiUnknown {
-			return res, true
+			return nil, res, kId
 		}
 		res += " " + S
 		self.NextLexem()
 	}
-	return res, true
+	return nil, res, kwiUnknown
 }
 
-func toKeywordId(S string) uint {
+func toKeywordId(S string) TKeywordId {
 	for i := 0; i < len(keywordList); i++ {
 		if S == keywordList[i].Name {
 			return keywordList[i].Id
@@ -207,7 +220,8 @@ BNF-правила для прототипа функции
 func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 	var (
 		name string
-		ok   bool
+		E    error
+		kId  TKeywordId = kwiUnknown
 	)
 
 	//[<ПАРАМЕТРЫ>]
@@ -222,9 +236,10 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 		for self.Lexem.Type != ltCloseParenthesis {
 			//СПИСОК ИМЁН = <ИМЯ> {',' <ИМЯ>}
 			for {
-				name, ok = self.ExtractComplexIdent()
-				if !ok {
-					return self.Lexem.errorAt(&lsaError{Msg: "Отсутствует имя параметра"})
+				E, name, kId = self.ExtractComplexIdent()
+				if E != nil {
+					return self.Lexem.errorAt(&lsaError{
+						Msg: E.Error() + ". Отсутствует имя параметра"})
 				}
 				self.AppendIdent(name)
 				if self.Lexem.Type != ltComma {
@@ -234,21 +249,24 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 			}
 
 			if self.Lexem.Type != ltColon {
-				return self.Lexem.errorAt(&lsaError{Msg: "Не указан тип параметра"})
+				return self.Lexem.errorAt(&lsaError{
+					Msg: "Не указан тип параметра"})
 			}
 			self.NextLexem()
 
 			//ТИП = [<ИМЯ ПАКЕТА> '.']<ИДЕНТИФИКАТОР>
-			if name, ok = self.ExtractComplexIdent(); !ok {
-				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
+			if name, E = self.ExtractComplexIdent(); E != nil {
+				return self.Lexem.errorAt(&lsaError{
+					Msg: E.Error() + ". Ожидается тип"})
 			}
 			self.AppendItem(ltitDataType)
 			if self.Lexem.Type == ltDot {
 				self.NextLexem()
 				self.AppendItem(ltitPackageName)
 				self.AppendIdent(name)
-				if name, ok = self.ExtractComplexIdent(); !ok {
-					return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
+				if name, E = self.ExtractComplexIdent(); E != nil {
+					return self.Lexem.errorAt(&lsaError{
+						Msg: E.Error() + ". Ожидается тип"})
 				}
 			}
 			self.AppendIdent(name)
@@ -268,15 +286,16 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 	//РЕЗУЛЬТАТ = ':' [<ИМЯ ПАКЕТА> '.']<ИМЯ ТИПА>
 	if self.Lexem.Type == ltColon {
 		self.NextLexem()
-		if name, ok = self.ExtractComplexIdent(); !ok {
-			return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
+		if name, E = self.ExtractComplexIdent(); E != nil {
+			return self.Lexem.errorAt(&lsaError{
+				Msg: E.Error() + ". Ожидается тип"})
 		}
 		self.AppendItem(ltitDataType)
 		if self.Lexem.Type == ltDot {
 			self.NextLexem()
 			self.AppendItem(ltitPackageName)
 			self.AppendIdent(name)
-			if name, ok = self.ExtractComplexIdent(); !ok {
+			if name, E = self.ExtractComplexIdent(); E != nil {
 				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
 			}
 		}
@@ -289,8 +308,8 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 func (self *TSyntaxDescriptor) translateVarList() error {
 	var (
 		S, name string
-		ok      bool
-		keywId  uint
+		E       error
+		keywId  TKeywordId
 	)
 
 	S = self.Lexem.LexemAsString()
@@ -301,14 +320,14 @@ func (self *TSyntaxDescriptor) translateVarList() error {
 
 		typeNotPresent := true
 		for {
-			if name, ok = self.ExtractComplexIdent(); !ok {
+			if name, E = self.ExtractComplexIdent(); E != nil {
 				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается имя переменной"})
 			}
 			self.AppendIdent(name)
 
 			if self.Lexem.Type == ltColon {
 				self.NextLexem()
-				if name, ok = self.ExtractComplexIdent(); !ok {
+				if name, E = self.ExtractComplexIdent(); E != nil {
 					return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип переменной"})
 				}
 				self.AppendItem(ltitDataType)
@@ -316,7 +335,7 @@ func (self *TSyntaxDescriptor) translateVarList() error {
 					self.NextLexem()
 					self.AppendItem(ltitPackageName)
 					self.AppendIdent(name)
-					if name, ok = self.ExtractComplexIdent(); !ok {
+					if name, E = self.ExtractComplexIdent(); E != nil {
 						return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип переменной"})
 					}
 					typeNotPresent = false
@@ -358,8 +377,8 @@ BNF-правила для объявления функции
 func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	var (
 		S, name string
-		ok      bool
-		keywId  uint
+		E       error
+		keywId  TKeywordId
 	)
 
 	S = self.Lexem.LexemAsString()
@@ -372,7 +391,7 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	self.NextLexem()
 
 	// [<ИМЯ КЛАССА> '.']<ИДЕНТИФИКАТОР> '('
-	if name, ok = self.ExtractComplexIdent(); !ok {
+	if name, E = self.ExtractComplexIdent(); E != nil {
 		return self.Lexem.errorAt(&lsaError{Msg: "Ожидается идентификатор"})
 	}
 
@@ -380,14 +399,13 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 		self.NextLexem()
 		self.AppendItem(ltitClassMember)
 		self.AppendIdent(name)
-		if name, ok = self.ExtractComplexIdent(); !ok {
+		if name, E = self.ExtractComplexIdent(); E != nil {
 			return self.Lexem.errorAt(&lsaError{Msg: "Ожидается идентификатор"})
 		}
 	}
 	self.AppendIdent(name)
 
-	E := self.translateFunctionPrototype()
-	if E != nil {
+	if E = self.translateFunctionPrototype(); E != nil {
 		return E
 	}
 
@@ -431,12 +449,8 @@ func (list *TStringArray) addUnique(S string) uint {
 
 func (self *TSyntaxDescriptor) translateNumber() error {
 	S := self.Lexem.LexemAsString()
-	index := self.StrNumbers.addUnique(S)
-
-	item := TLanguageItem{Type: ltitNumber, Index: index}
-	self.LanguageItems = append(self.LanguageItems, item)
-
-	self.Lexem = self.Lexem.Next
+	self.AppendNumber(S)
+	self.NextLexem()
 	return nil
 }
 
@@ -446,15 +460,13 @@ func (Self *TSyntaxDescriptor) translateComplexIdent() error {
 	}
 
 	S := Self.Lexem.LexemAsString()
-	Self.Lexem = Self.Lexem.Next
+	Self.NextLexem()
 	for Self.Lexem.Type == ltIdent {
 		S += " " + Self.Lexem.LexemAsString()
-		Self.Lexem = Self.Lexem.Next
+		Self.NextLexem()
 	}
 
-	index := Self.StrIdents.addUnique(S)
-	item := TLanguageItem{Type: ltitIdent, Index: index}
-	Self.LanguageItems = append(Self.LanguageItems, item)
+	Self.AppendIdent(S)
 	return nil
 }
 
@@ -465,11 +477,9 @@ func (self *TSyntaxDescriptor) translateString() error {
 	}
 
 	S := self.Lexem.LexemAsString()
-	self.Lexem = self.Lexem.Next
+	self.NextLexem()
 
-	index := self.StrStrings.addUnique(S)
-	item := TLanguageItem{Type: ltitString, Index: index}
-	self.LanguageItems = append(self.LanguageItems, item)
+	self.AppendString(S)
 
 	return nil
 }
@@ -501,7 +511,7 @@ func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 		Self.NextLexem()
 
 	case ltIdent:
-		E = Self.translateComplexIdent()
+		S, E = Self.ExtractComplexIdent()
 
 	case ltString:
 		E = Self.translateString()
@@ -743,6 +753,25 @@ func (self *TSyntaxDescriptor) translateIfStatement() (E error) {
 	return
 }
 
+func (self *TSyntaxDescriptor) translateWhileStatement() (E error) {
+	S := self.Lexem.LexemAsString()
+	kId := toKeywordId(S)
+	if kId != kwiWhile {
+		return self.Lexem.errorAt(ESyntaxError)
+	}
+	self.NextLexem()
+	self.AppendItem(ltitWhile)
+
+	if E = self.translateExpression(); E != nil {
+		return
+	}
+	if E = self.translateGroupOfStatements(); E != nil {
+		return
+	}
+
+	return
+}
+
 func (self *TSyntaxDescriptor) translateIdent() (E error) {
 	E = nil
 	S := self.Lexem.LexemAsString()
@@ -763,6 +792,9 @@ func (self *TSyntaxDescriptor) translateIdent() (E error) {
 	case kwiIf:
 		E = self.translateIfStatement()
 
+	case kwiWhile:
+		E = self.translateWhileStatement()
+
 	default:
 		self.NextLexem()
 	}
@@ -772,8 +804,8 @@ func (self *TSyntaxDescriptor) translateIdent() (E error) {
 
 /*
 Анализ лексемы, когда нет активного оператора
-Например, после for
-должна быть инициализация переменной цикла, 'to', <ВЫРАЖЕНИЕ>, возможно шаг,
+Например, после for должна быть инициализация переменной цикла, 'to',
+<ВЫРАЖЕНИЕ>, возможно шаг,
 возможно 'begin', далее идёт всё что угодно, вот тут translateLexem и нужен
 */
 func (self *TSyntaxDescriptor) translateLexem() (E error) {

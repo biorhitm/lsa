@@ -60,6 +60,7 @@ type lsaError struct {
 	Msg      string
 	LineNo   uint
 	ColumnNo uint
+	Keyword  uint
 }
 
 type TLexem struct {
