@@ -63,6 +63,7 @@ type TSyntaxDescriptor struct {
 	StrNumbers    TStringArray
 	StrIdents     TStringArray
 	StrStrings    TStringArray
+	Keyword       TKeywordId
 }
 
 func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
@@ -240,8 +241,7 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 			//СПИСОК ИМЁН = <ИМЯ> {',' <ИМЯ>}
 			for {
 				E, name, kId = self.ExtractComplexIdent()
-				if E != nil || kId != kwiUnknown {
-					//TODO: перед именем может идти const или var
+				if E != nil {
 					if E != nil {
 						return self.Lexem.errorAt(&lsaError{
 							Msg: E.Error() + ". Отсутствует имя параметра"})
@@ -296,7 +296,7 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 	if self.Lexem.Type == ltColon {
 		self.NextLexem()
 		E, name, kId = self.ExtractComplexIdent()
-		if E != nil || kId != kwiUnknown {
+		if E != nil {
 			return self.Lexem.errorAt(&lsaError{
 				Msg: ". Ожидается тип"})
 		}
@@ -480,19 +480,34 @@ func (self *TSyntaxDescriptor) translateNumber() error {
 	return nil
 }
 
-func (Self *TSyntaxDescriptor) translateComplexIdent() error {
-	if Self.Lexem.Type != ltIdent {
-		return Self.Lexem.errorAt(&lsaError{Msg: "Can't translateComplexIdent, type not ltIdent."})
+func (self *TSyntaxDescriptor) translateComplexIdent() error {
+	self.Keyword = kwiUnknown
+	if self.Lexem.Type != ltIdent {
+		return self.Lexem.errorAt(&lsaError{Msg: "Can't translateComplexIdent, type not ltIdent."})
 	}
 
-	S := Self.Lexem.LexemAsString()
-	Self.NextLexem()
-	for Self.Lexem.Type == ltIdent {
-		S += " " + Self.Lexem.LexemAsString()
-		Self.NextLexem()
+	S := self.Lexem.LexemAsString()
+	K := toKeywordId(S)
+	if K != kwiUnknown {
+		self.Keyword = K
+		return self.Lexem.errorAt(&lsaError{Msg: "Can't translateComplexIdent, keyword."})
+	}
+	self.NextLexem()
+
+	ident := S
+	for self.Lexem.Type == ltIdent {
+		S = self.Lexem.LexemAsString()
+		K = toKeywordId(S)
+		if K != kwiUnknown {
+			self.Keyword = K
+			break
+		}
+
+		ident += " " + S
+		self.NextLexem()
 	}
 
-	Self.AppendIdent(S)
+	self.AppendIdent(ident)
 	return nil
 }
 
@@ -523,7 +538,6 @@ func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 	E = nil
 	var (
 		S     string
-		keyId TKeywordId
 	)
 
 	// пропускаю необязательные открывающие скобки
@@ -540,10 +554,7 @@ func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 		Self.NextLexem()
 
 	case ltIdent:
-		E, S, keyId = Self.ExtractComplexIdent()
-		if keyId != kwiUnknown {
-			E = newEKeywordError(uint(keyId))
-		}
+		E = Self.translateComplexIdent()
 
 	case ltString:
 		E = Self.translateString()
