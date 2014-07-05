@@ -164,8 +164,7 @@ func (self *TSyntaxDescriptor) AppendString(S string) {
 
 func (self *TSyntaxDescriptor) NextLexem() {
 	if self.Lexem != nil && self.Lexem.Type != ltEOF {
-		self.Lexem = self.Lexem.Next
-	}
+		self.Lexem = self.Lexem.Next}
 }
 
 func newEKeywordError(AKeyword uint) *lsaError {
@@ -173,8 +172,12 @@ func newEKeywordError(AKeyword uint) *lsaError {
 		Keyword: AKeyword}
 }
 
-//TODO: должен возвращать ошибку 'встретилось зарезервированное слово' с
-// кодом слова
+// Извлекает из лексем идентификатор, состоящий из нескольких слов
+// Возвращает: (1)ошибку не nil, если первая лексема не ltIdent или первое
+//  слово — зарезервированное слово; (2)строку — идентификатор, состоящий из
+//  нескольких слов, разделённых пробелом(кол-во пробелов между словами не
+//  различается; (3)номер зарезервированного слова, если не равен kwiUnknown,
+//  значит такое слово встретилось
 func (self *TSyntaxDescriptor) ExtractComplexIdent() (error, string,
 	TKeywordId) {
 	if self.Lexem.Type != ltIdent {
@@ -183,7 +186,7 @@ func (self *TSyntaxDescriptor) ExtractComplexIdent() (error, string,
 	S := self.Lexem.LexemAsString()
 	kId := toKeywordId(S)
 	if kId != kwiUnknown {
-		return self.Lexem.errorAt(EUnExpectedKeyword), "", kId
+		return nil, "", kId
 	}
 	kId = kwiUnknown
 	self.NextLexem()
@@ -237,9 +240,12 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 			//СПИСОК ИМЁН = <ИМЯ> {',' <ИМЯ>}
 			for {
 				E, name, kId = self.ExtractComplexIdent()
-				if E != nil {
-					return self.Lexem.errorAt(&lsaError{
-						Msg: E.Error() + ". Отсутствует имя параметра"})
+				if E != nil || kId != kwiUnknown {
+					//TODO: перед именем может идти const или var
+					if E != nil {
+						return self.Lexem.errorAt(&lsaError{
+							Msg: E.Error() + ". Отсутствует имя параметра"})
+					}
 				}
 				self.AppendIdent(name)
 				if self.Lexem.Type != ltComma {
@@ -255,18 +261,21 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 			self.NextLexem()
 
 			//ТИП = [<ИМЯ ПАКЕТА> '.']<ИДЕНТИФИКАТОР>
-			if name, E = self.ExtractComplexIdent(); E != nil {
+			E, name, kId = self.ExtractComplexIdent()
+			if E != nil || kId != kwiUnknown {
+				//TODO: Тип может быть 'array ...'
 				return self.Lexem.errorAt(&lsaError{
-					Msg: E.Error() + ". Ожидается тип"})
+					Msg: ". Ожидается тип"})
 			}
 			self.AppendItem(ltitDataType)
 			if self.Lexem.Type == ltDot {
 				self.NextLexem()
 				self.AppendItem(ltitPackageName)
 				self.AppendIdent(name)
-				if name, E = self.ExtractComplexIdent(); E != nil {
+				E, name, kId = self.ExtractComplexIdent()
+				if E != nil || kId != kwiUnknown {
 					return self.Lexem.errorAt(&lsaError{
-						Msg: E.Error() + ". Ожидается тип"})
+						Msg: ". Ожидается тип"})
 				}
 			}
 			self.AppendIdent(name)
@@ -286,17 +295,21 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 	//РЕЗУЛЬТАТ = ':' [<ИМЯ ПАКЕТА> '.']<ИМЯ ТИПА>
 	if self.Lexem.Type == ltColon {
 		self.NextLexem()
-		if name, E = self.ExtractComplexIdent(); E != nil {
+		E, name, kId = self.ExtractComplexIdent()
+		if E != nil || kId != kwiUnknown {
 			return self.Lexem.errorAt(&lsaError{
-				Msg: E.Error() + ". Ожидается тип"})
+				Msg: ". Ожидается тип"})
 		}
 		self.AppendItem(ltitDataType)
 		if self.Lexem.Type == ltDot {
 			self.NextLexem()
 			self.AppendItem(ltitPackageName)
 			self.AppendIdent(name)
-			if name, E = self.ExtractComplexIdent(); E != nil {
-				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
+			E, name, kId = self.ExtractComplexIdent()
+			if E != nil || kId != kwiUnknown {
+				if E != nil {
+					return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип"})
+				}
 			}
 		}
 		self.AppendIdent(name)
@@ -320,23 +333,32 @@ func (self *TSyntaxDescriptor) translateVarList() error {
 
 		typeNotPresent := true
 		for {
-			if name, E = self.ExtractComplexIdent(); E != nil {
-				return self.Lexem.errorAt(&lsaError{Msg: "Ожидается имя переменной"})
+			E, name, keywId = self.ExtractComplexIdent()
+			if E != nil || keywId != kwiUnknown {
+				if E != nil {
+					return self.Lexem.errorAt(&lsaError{Msg: "Ожидается имя переменной"})
+				}
 			}
 			self.AppendIdent(name)
 
 			if self.Lexem.Type == ltColon {
 				self.NextLexem()
-				if name, E = self.ExtractComplexIdent(); E != nil {
-					return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип переменной"})
+				E, name, keywId = self.ExtractComplexIdent()
+				if E != nil || keywId != kwiUnknown {
+					if E != nil {
+						return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип переменной"})
+					}
 				}
 				self.AppendItem(ltitDataType)
 				if self.Lexem.Type == ltDot {
 					self.NextLexem()
 					self.AppendItem(ltitPackageName)
 					self.AppendIdent(name)
-					if name, E = self.ExtractComplexIdent(); E != nil {
-						return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип переменной"})
+					E, name, keywId = self.ExtractComplexIdent()
+					if E != nil || keywId != kwiUnknown {
+						if E != nil {
+							return self.Lexem.errorAt(&lsaError{Msg: "Ожидается тип переменной"})
+						}
 					}
 					typeNotPresent = false
 				}
@@ -391,15 +413,19 @@ func (self *TSyntaxDescriptor) translateFunctionDeclaration() error {
 	self.NextLexem()
 
 	// [<ИМЯ КЛАССА> '.']<ИДЕНТИФИКАТОР> '('
-	if name, E = self.ExtractComplexIdent(); E != nil {
-		return self.Lexem.errorAt(&lsaError{Msg: "Ожидается идентификатор"})
+	E, name, keywId = self.ExtractComplexIdent()
+	if E != nil || keywId != kwiUnknown {
+		if E != nil {
+			return self.Lexem.errorAt(&lsaError{Msg: "Ожидается идентификатор"})
+		}
 	}
 
 	if self.Lexem.Type == ltDot { //функция является членом класса
 		self.NextLexem()
 		self.AppendItem(ltitClassMember)
 		self.AppendIdent(name)
-		if name, E = self.ExtractComplexIdent(); E != nil {
+		E, name, keywId = self.ExtractComplexIdent()
+		if E != nil || keywId != kwiUnknown {
 			return self.Lexem.errorAt(&lsaError{Msg: "Ожидается идентификатор"})
 		}
 	}
@@ -495,7 +521,10 @@ func (self *TSyntaxDescriptor) translateString() error {
 */
 func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 	E = nil
-	var S string
+	var (
+		S     string
+		keyId TKeywordId
+	)
 
 	// пропускаю необязательные открывающие скобки
 	for Self.Lexem.Type == ltOpenParenthesis {
@@ -511,7 +540,10 @@ func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 		Self.NextLexem()
 
 	case ltIdent:
-		S, E = Self.ExtractComplexIdent()
+		E, S, keyId = Self.ExtractComplexIdent()
+		if keyId != kwiUnknown {
+			E = newEKeywordError(uint(keyId))
+		}
 
 	case ltString:
 		E = Self.translateString()
@@ -534,16 +566,12 @@ func (self *TSyntaxDescriptor) translateOperation() error {
 	switch self.Lexem.Type {
 	case ltStar:
 		lit = ltitMathMul
-
 	case ltPlus:
 		lit = ltitMathAdd
-
 	case ltMinus:
 		lit = ltitMathSub
-
 	case ltSlash:
 		lit = ltitMathDiv
-
 	case ltEqualSign:
 		lit = ltitEqual
 
