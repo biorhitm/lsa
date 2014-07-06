@@ -66,19 +66,6 @@ type TSyntaxDescriptor struct {
 	Keyword       TKeywordId
 }
 
-func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
-	for ALexem != nil {
-		if ALexem.Type == _type {
-			if text != "" && (*ALexem).LexemAsString() == text {
-				return ALexem.Next
-			}
-		}
-
-		ALexem = ALexem.Next
-	}
-	return ALexem
-}
-
 type TKeywordId uint
 type TKeyword struct {
 	Id   TKeywordId
