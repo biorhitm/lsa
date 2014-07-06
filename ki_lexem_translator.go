@@ -165,12 +165,8 @@ func (self *TSyntaxDescriptor) AppendString(S string) {
 
 func (self *TSyntaxDescriptor) NextLexem() {
 	if self.Lexem != nil && self.Lexem.Type != ltEOF {
-		self.Lexem = self.Lexem.Next}
-}
-
-func newEKeywordError(AKeyword uint) *lsaError {
-	return &lsaError{Msg: "Встретилось зарезервированное слово",
-		Keyword: AKeyword}
+		self.Lexem = self.Lexem.Next
+	}
 }
 
 // Извлекает из лексем идентификатор, состоящий из нескольких слов
@@ -240,14 +236,11 @@ func (self *TSyntaxDescriptor) translateFunctionPrototype() error {
 		for self.Lexem.Type != ltCloseParenthesis {
 			//СПИСОК ИМЁН = <ИМЯ> {',' <ИМЯ>}
 			for {
-				E, name, kId = self.ExtractComplexIdent()
+				E = self.translateComplexIdent()
 				if E != nil {
-					if E != nil {
-						return self.Lexem.errorAt(&lsaError{
-							Msg: E.Error() + ". Отсутствует имя параметра"})
-					}
+					return self.Lexem.errorAt(&lsaError{
+						Msg: E.Error() + ". Отсутствует имя параметра"})
 				}
-				self.AppendIdent(name)
 				if self.Lexem.Type != ltComma {
 					break
 				}
@@ -537,7 +530,7 @@ func (self *TSyntaxDescriptor) translateString() error {
 func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 	E = nil
 	var (
-		S     string
+		S string
 	)
 
 	// пропускаю необязательные открывающие скобки
