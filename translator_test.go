@@ -309,3 +309,54 @@ func TestWhileStatement(t *testing.T) {
 		t.Fatal(E.Error())
 	}
 }
+
+func TestOperations(t *testing.T) {
+	if E := compareStringAndLanguageItems(
+		"A = B > C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitAbove, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"A = B >= C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitAboveEqual, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"A = B >> C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitRightShift, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"A = B < C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitBelow, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"A = B <= C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitBelowEqual, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"A = B << C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitLeftShift, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+}
