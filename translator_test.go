@@ -359,4 +359,12 @@ func TestOperations(t *testing.T) {
 		}); E != nil {
 		t.Fatal(E.Error())
 	}
+	if E := compareStringAndLanguageItems(
+		"A = B <> C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitNotEqual, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
 }

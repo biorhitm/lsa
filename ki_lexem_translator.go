@@ -32,6 +32,7 @@ const (
 	ltitBelow
 	ltitAboveEqual
 	ltitBelowEqual
+	ltitNotEqual
 	ltitLeftShift
 	ltitRightShift
 	ltitFunction
@@ -559,6 +560,8 @@ func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 }
 
 //TODO: добавить проверку остальных операций: ! ~ & | and or xor not shr shl
+// Анализирует следующие операции:
+// *  +  -  /  =  >  >=  >>  <  <=  <<  <>
 func (self *TSyntaxDescriptor) translateOperation() error {
 	var curT, nextT TLexemType
 	var lit TLanguageItemType
@@ -598,6 +601,9 @@ func (self *TSyntaxDescriptor) translateOperation() error {
 		} else if nextT == ltBelowSign {
 			self.NextLexem()
 			lit = ltitLeftShift
+		} else if nextT == ltAboveSign {
+			self.NextLexem()
+			lit = ltitNotEqual
 		}
 
 	default:
