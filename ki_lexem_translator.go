@@ -46,6 +46,7 @@ const (
 	ltitIf
 	ltitElse
 	ltitWhile
+	ltitAddressOf
 )
 
 type TLanguageItem struct {
@@ -89,6 +90,7 @@ const (
 	kwiIf
 	kwiElse
 	kwiWhile
+	kwiNOT
 )
 
 var (
@@ -110,6 +112,8 @@ var (
 		TKeyword{kwiElse, "else"},
 		TKeyword{kwiWhile, "пока"},
 		TKeyword{kwiWhile, "while"},
+		TKeyword{kwiNOT, "не"},
+		TKeyword{kwiNOT, "not"},
 		TKeyword{kwiUnknown, ""},
 	}
 )
@@ -512,6 +516,38 @@ func (self *TSyntaxDescriptor) translateString() error {
 	return nil
 }
 
+// Анализирует унарные операции:
+// ! not не - логическое нет
+// & @ - адрес
+func (self *TSyntaxDescriptor) translateUnaryOperation() error {
+	var curT TLexemType = self.Lexem.Type
+	var lit TLanguageItemType = ltitUnknown
+
+	switch curT {
+	case ltIdent:
+		S := self.Lexem.LexemAsString()
+		K := toKeywordId(S)
+		if K == kwiNOT {
+			lit = ltitNOT
+		} else {
+			return self.Lexem.errorAt(ESyntaxError)
+		}
+
+	case ltExclamationMark:
+		lit = ltitNOT
+
+	case ltAmpersand, ltAt:
+		lit = ltitAddressOf
+
+	default:
+		return self.Lexem.errorAt(ESyntaxError)
+	}
+
+	self.AppendItem(lit)
+	self.NextLexem()
+	return nil
+}
+
 //TODO: распознание символа как аргумента
 //TODO: распознание вызова функции как аргумента
 /*
@@ -522,16 +558,27 @@ func (self *TSyntaxDescriptor) translateString() error {
 ПАРАМЕТРЫ = [<ВЫРАЖЕНИЕ>] {',' [<ВЫРАЖЕНИЕ>]}
 */
 func (Self *TSyntaxDescriptor) translateArgument() (E error) {
-	E = nil
 	var (
-		S string
+		S        string
+		wasUnary bool = false
 	)
+
+	E = Self.translateUnaryOperation()
+	if E == nil {
+		wasUnary = true
+	}
+
+	E = nil
 
 	// пропускаю необязательные открывающие скобки
 	for Self.Lexem.Type == ltOpenParenthesis {
 		Self.NextLexem()
 		Self.AppendItem(ltitOpenParenthesis)
 		Self.Parenthesis++
+	}
+
+	if !wasUnary {
+		Self.translateUnaryOperation()
 	}
 
 	switch Self.Lexem.Type {

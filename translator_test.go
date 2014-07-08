@@ -367,4 +367,19 @@ func TestOperations(t *testing.T) {
 		}); E != nil {
 		t.Fatal(E.Error())
 	}
+	if E := compareStringAndLanguageItems(
+		"A = not (B + (!C + не Д)) + &obj + @OBJ",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitNOT, ""}, {ltitOpenParenthesis, ""}, {ltitIdent, "B"},
+			{ltitMathAdd, ""},
+			{ltitOpenParenthesis, ""}, {ltitNOT, ""}, {ltitIdent, "C"},
+			{ltitMathAdd, ""},
+			{ltitNOT, ""}, {ltitIdent, "Д"},
+			{ltitCloseParenthesis, ""}, {ltitCloseParenthesis, ""},
+			{ltitMathAdd, ""}, {ltitAddressOf, ""}, {ltitIdent, "obj"},
+			{ltitMathAdd, ""}, {ltitAddressOf, ""}, {ltitIdent, "OBJ"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
 }
