@@ -309,3 +309,77 @@ func TestWhileStatement(t *testing.T) {
 		t.Fatal(E.Error())
 	}
 }
+
+func TestOperations(t *testing.T) {
+	if E := compareStringAndLanguageItems(
+		"A = B > C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitAbove, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"A = B >= C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitAboveEqual, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"A = B >> C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitRightShift, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"A = B < C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitBelow, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"A = B <= C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitBelowEqual, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"A = B << C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitLeftShift, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"A = B <> C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitNotEqual, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+	if E := compareStringAndLanguageItems(
+		"A = not (B + (!C + не Д)) + &obj + @OBJ",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitNOT, ""}, {ltitOpenParenthesis, ""}, {ltitIdent, "B"},
+			{ltitMathAdd, ""},
+			{ltitOpenParenthesis, ""}, {ltitNOT, ""}, {ltitIdent, "C"},
+			{ltitMathAdd, ""},
+			{ltitNOT, ""}, {ltitIdent, "Д"},
+			{ltitCloseParenthesis, ""}, {ltitCloseParenthesis, ""},
+			{ltitMathAdd, ""}, {ltitAddressOf, ""}, {ltitIdent, "obj"},
+			{ltitMathAdd, ""}, {ltitAddressOf, ""}, {ltitIdent, "OBJ"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
+}

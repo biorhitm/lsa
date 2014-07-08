@@ -28,6 +28,13 @@ const (
 	ltitXOR
 	ltitNOT
 	ltitEqual
+	ltitAbove
+	ltitBelow
+	ltitAboveEqual
+	ltitBelowEqual
+	ltitNotEqual
+	ltitLeftShift
+	ltitRightShift
 	ltitFunction
 	ltitVarList
 	ltitDataType
@@ -39,6 +46,7 @@ const (
 	ltitIf
 	ltitElse
 	ltitWhile
+	ltitAddressOf
 )
 
 type TLanguageItem struct {
@@ -66,19 +74,6 @@ type TSyntaxDescriptor struct {
 	Keyword       TKeywordId
 }
 
-func getLexemAfterLexem(ALexem PLexem, _type TLexemType, text string) PLexem {
-	for ALexem != nil {
-		if ALexem.Type == _type {
-			if text != "" && (*ALexem).LexemAsString() == text {
-				return ALexem.Next
-			}
-		}
-
-		ALexem = ALexem.Next
-	}
-	return ALexem
-}
-
 type TKeywordId uint
 type TKeyword struct {
 	Id   TKeywordId
@@ -95,6 +90,7 @@ const (
 	kwiIf
 	kwiElse
 	kwiWhile
+	kwiNOT
 )
 
 var (
@@ -116,6 +112,8 @@ var (
 		TKeyword{kwiElse, "else"},
 		TKeyword{kwiWhile, "пока"},
 		TKeyword{kwiWhile, "while"},
+		TKeyword{kwiNOT, "не"},
+		TKeyword{kwiNOT, "not"},
 		TKeyword{kwiUnknown, ""},
 	}
 )
@@ -518,6 +516,38 @@ func (self *TSyntaxDescriptor) translateString() error {
 	return nil
 }
 
+// Анализирует унарные операции:
+// ! not не - логическое нет
+// & @ - адрес
+func (self *TSyntaxDescriptor) translateUnaryOperation() error {
+	var curT TLexemType = self.Lexem.Type
+	var lit TLanguageItemType = ltitUnknown
+
+	switch curT {
+	case ltIdent:
+		S := self.Lexem.LexemAsString()
+		K := toKeywordId(S)
+		if K == kwiNOT {
+			lit = ltitNOT
+		} else {
+			return self.Lexem.errorAt(ESyntaxError)
+		}
+
+	case ltExclamationMark:
+		lit = ltitNOT
+
+	case ltAmpersand, ltAt:
+		lit = ltitAddressOf
+
+	default:
+		return self.Lexem.errorAt(ESyntaxError)
+	}
+
+	self.AppendItem(lit)
+	self.NextLexem()
+	return nil
+}
+
 //TODO: распознание символа как аргумента
 //TODO: распознание вызова функции как аргумента
 /*
@@ -528,16 +558,27 @@ func (self *TSyntaxDescriptor) translateString() error {
 ПАРАМЕТРЫ = [<ВЫРАЖЕНИЕ>] {',' [<ВЫРАЖЕНИЕ>]}
 */
 func (Self *TSyntaxDescriptor) translateArgument() (E error) {
-	E = nil
 	var (
-		S string
+		S        string
+		wasUnary bool = false
 	)
+
+	E = Self.translateUnaryOperation()
+	if E == nil {
+		wasUnary = true
+	}
+
+	E = nil
 
 	// пропускаю необязательные открывающие скобки
 	for Self.Lexem.Type == ltOpenParenthesis {
 		Self.NextLexem()
 		Self.AppendItem(ltitOpenParenthesis)
 		Self.Parenthesis++
+	}
+
+	if !wasUnary {
+		Self.translateUnaryOperation()
 	}
 
 	switch Self.Lexem.Type {
@@ -565,9 +606,20 @@ func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 	return
 }
 
+//TODO: добавить проверку остальных операций: ! ~ & | and or xor not shr shl
+// Анализирует следующие операции:
+// *  +  -  /  =  >  >=  >>  <  <=  <<  <>
 func (self *TSyntaxDescriptor) translateOperation() error {
+	var curT, nextT TLexemType
 	var lit TLanguageItemType
-	switch self.Lexem.Type {
+
+	curT = self.Lexem.Type
+	nextT = ltUnknown
+	if self.Lexem.Next != nil {
+		nextT = self.Lexem.Next.Type
+	}
+
+	switch curT {
 	case ltStar:
 		lit = ltitMathMul
 	case ltPlus:
@@ -578,6 +630,28 @@ func (self *TSyntaxDescriptor) translateOperation() error {
 		lit = ltitMathDiv
 	case ltEqualSign:
 		lit = ltitEqual
+	case ltAboveSign:
+		lit = ltitAbove
+		if nextT == ltEqualSign {
+			self.NextLexem()
+			lit = ltitAboveEqual
+		} else if nextT == ltAboveSign {
+			self.NextLexem()
+			lit = ltitRightShift
+		}
+
+	case ltBelowSign:
+		lit = ltitBelow
+		if nextT == ltEqualSign {
+			self.NextLexem()
+			lit = ltitBelowEqual
+		} else if nextT == ltBelowSign {
+			self.NextLexem()
+			lit = ltitLeftShift
+		} else if nextT == ltAboveSign {
+			self.NextLexem()
+			lit = ltitNotEqual
+		}
 
 	default:
 		return self.Lexem.errorAt(ESyntaxError)
@@ -596,26 +670,22 @@ func (self *TSyntaxDescriptor) translateExpression() (E error) {
 	E = self.translateArgument()
 
 	// [<ОПЕРАЦИЯ><АРГУМЕНТ>]
-Loop:
 	for E == nil {
-		switch self.Lexem.Type {
-		//TODO: вынести проверку операции в функцию и добавить проверку
-		//      остальных операций: > < >= <= >> << ! ~
-		case ltPlus, ltMinus, ltStar, ltSlash, ltPercent, ltEqualSign:
-			if E = self.translateOperation(); E == nil {
-				E = self.translateArgument()
-			}
-
-		default:
-			break Loop
+		E = self.translateOperation()
+		if E != nil {
+			E = nil
+			break
 		}
+		E = self.translateArgument()
 	}
 
-	if E == nil && self.Parenthesis < 0 {
-		return self.Lexem.errorAt(ETooMuchCloseRB)
-	}
-	if E == nil && self.Parenthesis > 0 {
-		return self.Lexem.errorAt(ETooMuchOpenRB)
+	if E == nil {
+		if self.Parenthesis < 0 {
+			E = self.Lexem.errorAt(ETooMuchCloseRB)
+		}
+		if self.Parenthesis > 0 {
+			E = self.Lexem.errorAt(ETooMuchOpenRB)
+		}
 	}
 
 	return
@@ -630,9 +700,7 @@ BNF-определения для присваивания выражения п
 ОПЕРАЦИЯ = '+' | '-' | '*' | '/' | '%' | '^'
 УНАРНАЯ ОПЕРАЦИЯ = '!'
 */
-func (Self *TSyntaxDescriptor) translateAssignment() error {
-	var E error
-
+func (Self *TSyntaxDescriptor) translateAssignment() (E error) {
 	E = Self.translateComplexIdent()
 	if E != nil {
 		return Self.Lexem.errorAt(ESyntaxError)
@@ -650,44 +718,9 @@ func (Self *TSyntaxDescriptor) translateAssignment() error {
 	}
 	Self.Lexem = Self.Lexem.skipEOL()
 
-	Self.Parenthesis = 0
+	E = Self.translateExpression()
 
-	// обрабатываю аргумент
-	E = Self.translateArgument()
-	if E != nil {
-		return E
-	}
-
-	// далее может серия аргументов через знаки операций
-Loop:
-	for {
-		switch Self.Lexem.Type {
-		//TODO: вынести проверку операции в функцию и добавить проверку
-		//      остальных операций: > < >= <= >> << ! ~
-		case ltPlus, ltMinus, ltStar, ltSlash, ltPercent:
-			E = Self.translateOperation()
-			if E != nil {
-				return E
-			}
-
-			E = Self.translateArgument()
-			if E != nil {
-				return E
-			}
-
-		default:
-			break Loop
-		}
-	}
-
-	if Self.Parenthesis < 0 {
-		return Self.Lexem.errorAt(ETooMuchCloseRB)
-	}
-	if Self.Parenthesis > 0 {
-		return Self.Lexem.errorAt(ETooMuchOpenRB)
-	}
-
-	return nil
+	return
 }
 
 func (self *TSyntaxDescriptor) begin() {
