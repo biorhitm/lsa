@@ -680,6 +680,14 @@ func (self *TSyntaxDescriptor) translateOperation() error {
 	case ltVerticalLine:
 		lit = ltitOR
 
+	case ltExclamationMark:
+		if nextT == ltEqualSign {
+			self.NextLexem()
+			lit = ltitNotEqual
+		} else {
+			return self.Lexem.errorAt(ESyntaxError)
+		}
+
 	default:
 		return self.Lexem.errorAt(ESyntaxError)
 	}

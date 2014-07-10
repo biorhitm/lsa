@@ -299,10 +299,10 @@ func TestVarList(t *testing.T) {
 
 func TestWhileStatement(t *testing.T) {
 	if E := compareStringAndLanguageItems(
-		"пока рак на горе = свистнет начало конец",
+		"пока рак на горе != свистнет начало конец",
 		[]tLanguageItem{
 			{ltitWhile, ""},
-			{ltitIdent, "рак на горе"}, {ltitEqual, ""},
+			{ltitIdent, "рак на горе"}, {ltitNotEqual, ""},
 			{ltitIdent, "свистнет"},
 			{ltitBegin, ""}, {ltitEnd, ""},
 		}); E != nil {
