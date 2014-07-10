@@ -91,6 +91,9 @@ const (
 	kwiElse
 	kwiWhile
 	kwiNOT
+	kwiAND
+	kwiOR
+	kwiXOR
 )
 
 var (
@@ -114,6 +117,12 @@ var (
 		TKeyword{kwiWhile, "while"},
 		TKeyword{kwiNOT, "не"},
 		TKeyword{kwiNOT, "not"},
+		TKeyword{kwiAND, "и"},
+		TKeyword{kwiAND, "and"},
+		TKeyword{kwiOR, "или"},
+		TKeyword{kwiOR, "or"},
+		TKeyword{kwiXOR, "иили"},
+		TKeyword{kwiXOR, "xor"},
 		TKeyword{kwiUnknown, ""},
 	}
 )
@@ -606,9 +615,9 @@ func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 	return
 }
 
-//TODO: добавить проверку остальных операций: ! ~ & | and or xor not shr shl
+//TODO: добавить проверку остальных операций: shr shl
 // Анализирует следующие операции:
-// *  +  -  /  =  >  >=  >>  <  <=  <<  <>
+// *  +  -  /  =  >  >=  >>  <  <=  <<  <> & | and or xor
 func (self *TSyntaxDescriptor) translateOperation() error {
 	var curT, nextT TLexemType
 	var lit TLanguageItemType
@@ -620,6 +629,19 @@ func (self *TSyntaxDescriptor) translateOperation() error {
 	}
 
 	switch curT {
+	case ltIdent:
+		S := self.Lexem.LexemAsString()
+		K := toKeywordId(S)
+		if K == kwiAND {
+			lit = ltitAND
+		} else if K == kwiOR {
+			lit = ltitOR
+		} else if K == kwiXOR {
+			lit = ltitXOR
+		} else {
+			return self.Lexem.errorAt(ESyntaxError)
+		}
+
 	case ltStar:
 		lit = ltitMathMul
 	case ltPlus:
@@ -652,6 +674,11 @@ func (self *TSyntaxDescriptor) translateOperation() error {
 			self.NextLexem()
 			lit = ltitNotEqual
 		}
+
+	case ltAmpersand:
+		lit = ltitAND
+	case ltVerticalLine:
+		lit = ltitOR
 
 	default:
 		return self.Lexem.errorAt(ESyntaxError)

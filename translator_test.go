@@ -382,4 +382,24 @@ func TestOperations(t *testing.T) {
 		}); E != nil {
 		t.Fatal(E.Error())
 	}
+	if E := compareStringAndLanguageItems(
+		"A = B & C + B | C + B and C + B or C + B и C + B или C + B иили C",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""},
+			{ltitIdent, "B"}, {ltitAND, ""}, {ltitIdent, "C"},
+			{ltitMathAdd, ""},
+			{ltitIdent, "B"}, {ltitOR, ""}, {ltitIdent, "C"},
+			{ltitMathAdd, ""},
+			{ltitIdent, "B"}, {ltitAND, ""}, {ltitIdent, "C"},
+			{ltitMathAdd, ""},
+			{ltitIdent, "B"}, {ltitOR, ""}, {ltitIdent, "C"},
+			{ltitMathAdd, ""},
+			{ltitIdent, "B"}, {ltitAND, ""}, {ltitIdent, "C"},
+			{ltitMathAdd, ""},
+			{ltitIdent, "B"}, {ltitOR, ""}, {ltitIdent, "C"},
+			{ltitMathAdd, ""},
+			{ltitIdent, "B"}, {ltitXOR, ""}, {ltitIdent, "C"},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
 }
