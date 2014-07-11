@@ -328,10 +328,11 @@ func TestOperations(t *testing.T) {
 		t.Fatal(E.Error())
 	}
 	if E := compareStringAndLanguageItems(
-		"A = B >> C",
+		"A = B >> C shr D сдп 2",
 		[]tLanguageItem{
 			{ltitIdent, "A"}, {ltitAssignment, ""},
-			{ltitIdent, "B"}, {ltitRightShift, ""}, {ltitIdent, "C"},
+			{ltitIdent, "B"}, {ltitSHR, ""}, {ltitIdent, "C"},
+			{ltitSHR, ""}, {ltitIdent, "D"}, {ltitSHR, ""}, {ltitNumber, "2"},
 		}); E != nil {
 		t.Fatal(E.Error())
 	}
@@ -352,10 +353,11 @@ func TestOperations(t *testing.T) {
 		t.Fatal(E.Error())
 	}
 	if E := compareStringAndLanguageItems(
-		"A = B << C",
+		"A = B << C shl D сдл 2",
 		[]tLanguageItem{
 			{ltitIdent, "A"}, {ltitAssignment, ""},
-			{ltitIdent, "B"}, {ltitLeftShift, ""}, {ltitIdent, "C"},
+			{ltitIdent, "B"}, {ltitSHL, ""}, {ltitIdent, "C"},
+			{ltitSHL, ""}, {ltitIdent, "D"}, {ltitSHL, ""}, {ltitNumber, "2"},
 		}); E != nil {
 		t.Fatal(E.Error())
 	}

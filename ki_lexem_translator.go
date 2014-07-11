@@ -27,14 +27,14 @@ const (
 	ltitAND
 	ltitXOR
 	ltitNOT
+	ltitSHL
+	ltitSHR
 	ltitEqual
 	ltitAbove
 	ltitBelow
 	ltitAboveEqual
 	ltitBelowEqual
 	ltitNotEqual
-	ltitLeftShift
-	ltitRightShift
 	ltitFunction
 	ltitVarList
 	ltitDataType
@@ -94,6 +94,8 @@ const (
 	kwiAND
 	kwiOR
 	kwiXOR
+	kwiSHL
+	kwiSHR
 )
 
 var (
@@ -123,6 +125,10 @@ var (
 		TKeyword{kwiOR, "or"},
 		TKeyword{kwiXOR, "иили"},
 		TKeyword{kwiXOR, "xor"},
+		TKeyword{kwiSHL, "сдл"},
+		TKeyword{kwiSHR, "сдп"},
+		TKeyword{kwiSHL, "shl"},
+		TKeyword{kwiSHR, "shr"},
 		TKeyword{kwiUnknown, ""},
 	}
 )
@@ -137,6 +143,26 @@ var (
 	EExpectedCloseOper  = &lsaError{Msg: "Отсутствует 'конец'"}
 	EUnExpectedKeyword  = &lsaError{Msg: "Встретилось зарезервированное слово"}
 )
+
+func keywordToOperation(K TKeywordId) (R TLanguageItemType) {
+	switch K {
+	case kwiAND:
+		R = ltitAND
+	case kwiOR:
+		R = ltitOR
+	case kwiXOR:
+		R = ltitXOR
+	case kwiNOT:
+		R = ltitNOT
+	case kwiSHR:
+		R = ltitSHR
+	case kwiSHL:
+		R = ltitSHL
+	default:
+		R = ltitUnknown
+	}
+	return
+}
 
 func (self *TSyntaxDescriptor) Init() {
 	self.Lexem = nil
@@ -536,9 +562,8 @@ func (self *TSyntaxDescriptor) translateUnaryOperation() error {
 	case ltIdent:
 		S := self.Lexem.LexemAsString()
 		K := toKeywordId(S)
-		if K == kwiNOT {
-			lit = ltitNOT
-		} else {
+		lit = keywordToOperation(K)
+		if lit == ltitUnknown {
 			return self.Lexem.errorAt(ESyntaxError)
 		}
 
@@ -632,13 +657,8 @@ func (self *TSyntaxDescriptor) translateOperation() error {
 	case ltIdent:
 		S := self.Lexem.LexemAsString()
 		K := toKeywordId(S)
-		if K == kwiAND {
-			lit = ltitAND
-		} else if K == kwiOR {
-			lit = ltitOR
-		} else if K == kwiXOR {
-			lit = ltitXOR
-		} else {
+		lit = keywordToOperation(K)
+		if lit == ltitUnknown {
 			return self.Lexem.errorAt(ESyntaxError)
 		}
 
@@ -659,7 +679,7 @@ func (self *TSyntaxDescriptor) translateOperation() error {
 			lit = ltitAboveEqual
 		} else if nextT == ltAboveSign {
 			self.NextLexem()
-			lit = ltitRightShift
+			lit = ltitSHR
 		}
 
 	case ltBelowSign:
@@ -669,7 +689,7 @@ func (self *TSyntaxDescriptor) translateOperation() error {
 			lit = ltitBelowEqual
 		} else if nextT == ltBelowSign {
 			self.NextLexem()
-			lit = ltitLeftShift
+			lit = ltitSHL
 		} else if nextT == ltAboveSign {
 			self.NextLexem()
 			lit = ltitNotEqual
