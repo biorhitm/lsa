@@ -169,6 +169,17 @@ func TestTranslateAssigment(t *testing.T) {
 		}); E != nil {
 		t.Fatal(E.Error())
 	}
+
+	if E := compareStringAndLanguageItems(
+		"A = foo(\"fmt\", 6, 5)",
+		[]tLanguageItem{
+			{ltitIdent, "A"}, {ltitAssignment, ""}, {ltitIdent, "foo"},
+			{ltitOpenParenthesis, ""}, {ltitString, "fmt"},
+			{ltitComma, ""}, {ltitNumber, "6"},
+			{ltitComma, ""}, {ltitNumber, "5"}, {ltitCloseParenthesis, ""},
+		}); E != nil {
+		t.Fatal(E.Error())
+	}
 }
 
 func Test_addUnique(t *testing.T) {

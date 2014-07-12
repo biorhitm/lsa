@@ -47,6 +47,7 @@ const (
 	ltitElse
 	ltitWhile
 	ltitAddressOf
+	ltitComma
 )
 
 type TLanguageItem struct {
@@ -142,6 +143,7 @@ var (
 	ETooMuchOpenRB      = &lsaError{Msg: "Слишком много ("}
 	EExpectedCloseOper  = &lsaError{Msg: "Отсутствует 'конец'"}
 	EUnExpectedKeyword  = &lsaError{Msg: "Встретилось зарезервированное слово"}
+	EExpectedComma      = &lsaError{Msg: "Отсутствует запятая"}
 )
 
 func keywordToOperation(K TKeywordId) (R TLanguageItemType) {
@@ -623,6 +625,34 @@ func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 
 	case ltIdent:
 		E = Self.translateComplexIdent()
+		//TODO: скобки пока обязательны, чтобы транслятор понял что вызывается
+		// функция
+		if Self.Lexem.Type == ltOpenParenthesis {
+			Self.NextLexem()
+			Self.AppendItem(ltitOpenParenthesis)
+			if Self.Lexem.Type == ltCloseParenthesis {
+				Self.NextLexem()
+				Self.AppendItem(ltitCloseParenthesis)
+			} else {
+				for {
+					//TODO: пока в скобках будут просто аргументы, выражения потом
+					E = Self.translateArgument()
+					if E != nil {
+						return
+					}
+					if Self.Lexem.Type == ltCloseParenthesis {
+						Self.NextLexem()
+						Self.AppendItem(ltitCloseParenthesis)
+						break
+					}
+					if Self.Lexem.Type != ltComma {
+						return Self.Lexem.errorAt(EExpectedComma)
+					}
+					Self.NextLexem()
+					Self.AppendItem(ltitComma)
+				}
+			}
+		}
 
 	case ltString:
 		E = Self.translateString()
@@ -632,7 +662,7 @@ func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 	}
 
 	// пропускаю необязательные закрывающие скобки
-	for Self.Lexem.Type == ltCloseParenthesis {
+	for Self.Parenthesis > 0 && Self.Lexem.Type == ltCloseParenthesis {
 		Self.NextLexem()
 		Self.AppendItem(ltitCloseParenthesis)
 		Self.Parenthesis--
