@@ -59,6 +59,8 @@ type TLanguageItem struct {
 
 type TStringArray []string
 
+const MAX_EXPRESSIONS = 16
+
 type TSyntaxDescriptor struct {
 	Lexem *TLexem
 	// лексема к которой надо будет вернуться, чтобы продолжить перевод
@@ -67,8 +69,9 @@ type TSyntaxDescriptor struct {
 	// переменной, чтобы записать её полное название
 	StartLexem    *TLexem
 	LanguageItems []TLanguageItem
-	Parenthesis   int
-	BeginCount    int
+	Parenthesis   [MAX_EXPRESSIONS]uint
+	ExprCount     uint
+	BeginCount    uint
 	StrNumbers    TStringArray
 	StrIdents     TStringArray
 	StrStrings    TStringArray
@@ -168,7 +171,8 @@ func keywordToOperation(K TKeywordId) (R TLanguageItemType) {
 
 func (self *TSyntaxDescriptor) Init() {
 	self.Lexem = nil
-	self.Parenthesis = 0
+	self.ExprCount = 0
+	self.Parenthesis[0] = 0
 	self.LanguageItems = make([]TLanguageItem, 0, 0)
 	self.StrIdents = make([]string, 0, 0)
 	self.StrNumbers = make([]string, 0, 0)
@@ -610,7 +614,7 @@ func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 	for Self.Lexem.Type == ltOpenParenthesis {
 		Self.NextLexem()
 		Self.AppendItem(ltitOpenParenthesis)
-		Self.Parenthesis++
+		Self.Parenthesis[Self.ExprCount]++
 	}
 
 	if !wasUnary {
@@ -662,10 +666,11 @@ func (Self *TSyntaxDescriptor) translateArgument() (E error) {
 	}
 
 	// пропускаю необязательные закрывающие скобки
-	for Self.Parenthesis > 0 && Self.Lexem.Type == ltCloseParenthesis {
+	for Self.Parenthesis[Self.ExprCount] > 0 &&
+		Self.Lexem.Type == ltCloseParenthesis {
 		Self.NextLexem()
 		Self.AppendItem(ltitCloseParenthesis)
-		Self.Parenthesis--
+		Self.Parenthesis[Self.ExprCount]--
 	}
 	return
 }
@@ -749,7 +754,8 @@ func (self *TSyntaxDescriptor) translateOperation() error {
 }
 
 func (self *TSyntaxDescriptor) translateExpression() (E error) {
-	self.Parenthesis = 0
+	self.Parenthesis[self.ExprCount] = 0
+	self.ExprCount++
 
 	// обрабатываю аргумент
 	E = self.translateArgument()
@@ -765,10 +771,10 @@ func (self *TSyntaxDescriptor) translateExpression() (E error) {
 	}
 
 	if E == nil {
-		if self.Parenthesis < 0 {
+		if self.Parenthesis[self.ExprCount] < 0 {
 			E = self.Lexem.errorAt(ETooMuchCloseRB)
 		}
-		if self.Parenthesis > 0 {
+		if self.Parenthesis[self.ExprCount] > 0 {
 			E = self.Lexem.errorAt(ETooMuchOpenRB)
 		}
 	}
@@ -996,7 +1002,7 @@ func TranslateCode(ALexem PLexem) (TSyntaxDescriptor, error) {
 		Lexem:         ALexem,
 		StartLexem:    ALexem,
 		LanguageItems: make([]TLanguageItem, 0, 1000),
-		Parenthesis:   0,
+		ExprCount:     0,
 		BeginCount:    0,
 		StrNumbers:    make([]string, 0, 1024),
 		StrIdents:     make([]string, 0, 1024),
